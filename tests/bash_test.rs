@@ -40,7 +40,7 @@ SEASALT_BIN={bin}
 SEASALT_DATA_DIR=$(mktemp -d)
 blehook() {{ :; }}
 ble/util/idle.push() {{ :; }}
-eval $("$SEASALT_BIN" init bash)
+eval "$("$SEASALT_BIN" init bash)"
 declare -F _seasalt_preexec >/dev/null
 declare -F _seasalt_precmd >/dev/null
 "#
@@ -49,6 +49,28 @@ declare -F _seasalt_precmd >/dev/null
     assert!(
         out.status.success(),
         "eval に失敗: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn init_bash_fails_on_unquoted_eval() {
+    let bin = env!("CARGO_BIN_EXE_seasalt");
+    // unquoted eval (eval $(...)) は word-split によりスニペットが壊れ、
+    // 構文エラーで失敗する。quoted 形式 (eval "$(...)") が必須。
+    let script = format!(
+        r#"set +e
+SEASALT_BIN={bin}
+out=$(eval $("$SEASALT_BIN" init bash) 2>&1)
+rc=$?
+[[ $rc -ne 0 ]] || exit 1
+[[ -n $out ]]
+"#
+    );
+    let out = Command::new("bash").args(["-c", &script]).output().unwrap();
+    assert!(
+        out.status.success(),
+        "unquoted eval が失敗しない: {}",
         String::from_utf8_lossy(&out.stderr)
     );
 }
@@ -67,7 +89,7 @@ ble/util/idle.push() {{ BASHER_IDLE_TASKS+=("$1"); }}
 # 本物の ble.sh は idle タスクを関数内で実行するため、テスト側も関数で受ける
 fire_idle_task() {{ eval "$1"; }}
 unset _ble_complete_auto_source
-eval $("$SEASALT_BIN" init bash)
+eval "$("$SEASALT_BIN" init bash)"
 [[ ${{#BASHER_HOOKS[@]}} -eq 2 ]]
 [[ ${{#BASHER_IDLE_TASKS[@]}} -eq 1 ]]
 # _ble_complete_auto_source が未定義のまま idle タスクが走っても安全に初期化される
@@ -79,7 +101,7 @@ _ble_complete_auto_source=(atuin-history history syntax)
 fire_idle_task "${{BASHER_IDLE_TASKS[0]}}"
 [[ " ${{_ble_complete_auto_source[*]}} " == " seasalt syntax " ]]
 # 起動後の再 eval でも重複せず冪等であること
-eval $("$SEASALT_BIN" init bash)
+eval "$("$SEASALT_BIN" init bash)"
 [[ ${{#BASHER_HOOKS[@]}} -eq 2 ]]
 [[ ${{#BASHER_IDLE_TASKS[@]}} -eq 2 ]]
 fire_idle_task "${{BASHER_IDLE_TASKS[1]}}"

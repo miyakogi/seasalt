@@ -103,7 +103,9 @@ CREATE INDEX idx_history_cwd_cmd ON history(cwd, cmd);
 
 1. `ble/complete/auto-complete/source:seasalt` 関数の定義
    - `_ble_edit_str` と `$PWD` を `seasalt suggest` に渡す
+   - 呼び出しは同期で、`timeout 0.2` で 200ms を超えたら補完なしで継続する (`timeout` は GNU coreutils 由来。macOS では coreutils の導入が必要)
    - 結果があれば `ble/complete/auto-complete/enter h 0 "$suggest" '' "$cmd"` を呼ぶ
+   - 非同期化 (ble.sh の bgproc / バックグラウンドサブシェル) は調査済み: いずれも bash 5.3 のジョブ表との相互作用で `[1] <pid>` のジョブ通知が表示される。ble.sh 側の修正待ちのため同期版を維持する
 2. `_ble_complete_auto_source` 配列の再整列(`seasalt syntax` の順)
    - ble.sh は core-complete を遅延ロードし、その際に配列を `(history syntax)` へ無条件リセットする。統合スニペットは idle タスクで「seasalt を先頭に置き、`atuin-history` と `history` を除去する」再整列を実行する
    - インライン提案は seasalt のみが担当し、削除済みファイルを参照するコマンドが他ソースから提案されるのを防ぐ(Ctrl-R の履歴検索には影響しない)
@@ -112,7 +114,7 @@ CREATE INDEX idx_history_cwd_cmd ON history(cwd, cmd);
 
 → キーによる確定は ble.sh の auto_complete キーマップが標準搭載しており追加実装不要。
 
-呼び出しは同期で開始する。応答遅延が体感に出た場合は ble.sh の bgproc(非同期)へ移行する。
+スニペットは quoted eval (`eval "$(seasalt init bash)"`) を前提とする。unquoted の `eval $(...)` は word-split により壊れて構文エラーになる(意図的)。
 
 ## 5. データフロー
 

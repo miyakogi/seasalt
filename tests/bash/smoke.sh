@@ -7,7 +7,7 @@ export SEASALT_BIN="$BIN"
 
 fail() { echo "FAIL: $1"; exit 1; }
 
-# フル検証スイート。$1 が quoted なら eval "$(...)"、unquoted なら eval $(...) でスニペットを読み込む。
+# フル検証スイート。quoted eval (eval "$(...)") でスニペットを読み込む。
 # ble.sh のふりをする関数は、本物の ble.sh の状態を再現するためのハーネス。
 # ble.sh は core-complete モジュールを .bashrc 実行後に遅延ロードし、ロード時に
 # _ble_complete_auto_source を無条件リセットしたうえで、後から atuin などの
@@ -26,11 +26,7 @@ run_suite() {
   # core-complete ロード前は _ble_complete_auto_source は未定義。フック登録状態もスイート毎にリセット
   unset _ble_complete_auto_source _seasalt_hooked
 
-  if [[ $1 == quoted ]]; then
-    eval "$("$BIN" init bash)"
-  else
-    eval $("$BIN" init bash)
-  fi
+  eval "$("$BIN" init bash)"
 
   # フック登録確認(再 eval しても重複しないことも確認)
   [[ ${#BASHER_HOOKS[@]} -eq 2 ]] || fail "hooks not registered: ${BASHER_HOOKS[*]}"
@@ -115,15 +111,29 @@ run_suite() {
 
   # auto-complete ソースが定義されていること
   declare -F ble/complete/auto-complete/source:seasalt >/dev/null || fail "source fn missing"
+
+  # suggest は同期実行: 履歴にマッチすれば enter 経由でサジェストされる
+  BASHER_ENTER=()
+  ble/complete/auto-complete/enter() { BASHER_ENTER+=("$1|$3"); }
+  _ble_edit_str="echo"
+  _ble_edit_ind=4
+  ble/complete/auto-complete/source:seasalt
+  [[ ${#BASHER_ENTER[@]} -gt 0 ]] || fail "suggestion not entered"
+  [[ ${BASHER_ENTER[0]} == "h| normal-after-private" ]] || fail "suggest mismatch: ${BASHER_ENTER[0]}"
+  unset _ble_edit_str _ble_edit_ind
 }
 
-run_suite unquoted
-run_suite quoted
+run_suite
 
 # ble.sh も bash-preexec も無い環境では stderr に警告が出て、非 0 で終わらないこと
 nohook_err=$(bash -c 'eval "$("$1" init bash)" 2>&1 >/dev/null; echo "rc=$?"' _ "$BIN")
 [[ $nohook_err == *"seasalt:"* ]] || fail "no-hook warning missing: $nohook_err"
 [[ $nohook_err == *"rc=0"* ]] || fail "no-hook eval returned non-zero: $nohook_err"
+
+# unquoted eval (eval $(...)) はスニペットのコメントにより構文エラーで失敗すること
+unq_err=$(bash -c 'eval $("$1" init bash) 2>&1; echo "rc=$?"' _ "$BIN")
+[[ $unq_err == *"rc=0"* ]] && fail "unquoted eval should fail: $unq_err"
+[[ -n $unq_err ]] || fail "unquoted eval produced no output: $unq_err"
 
 # bash-preexec 環境では preexec_functions / precmd_functions に登録され、stderr は空であること
 bp_err=$(bash -c 'declare -a preexec_functions precmd_functions; eval "$("$1" init bash)" 2>&1 >/dev/null' _ "$BIN")
