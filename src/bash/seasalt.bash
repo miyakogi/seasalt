@@ -7,6 +7,7 @@ if [[ "$_seasalt_bin" ]]; then
     local cmd;
     cmd=${1:-};
     [[ "$cmd" ]] || return 0;
+    [[ $cmd == [[:space:]]* ]] && return 0;
     _seasalt_last_id=$("$_seasalt_bin" record --cwd "$PWD" --session "$_seasalt_session" -- "$cmd" 2>/dev/null);
     case "$_seasalt_last_id" in
       (*[!0-9]*) _seasalt_last_id= ;;

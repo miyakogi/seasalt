@@ -71,6 +71,7 @@ CREATE INDEX idx_history_cwd_cmd ON history(cwd, cmd);
 
 - `seasalt record --cwd DIR -- CMD`
   - preexec フックから呼ばれ履歴を記録する (実行前時点のエントリ作成)
+  - 先頭が空白 (スペースまたはタブ) のコマンドは記録しない (bash の `HISTCONTROL=ignorespace` と同じ。パスワードなどのセンシティブな入力を誤って保存しないため)。スニペットの `_seasalt_preexec` と record 本体の両方でガードする
   - 同一 (cwd, cmd) の既存行があれば新規行を作らず、その行を最新化する (started_at 更新・paths 置換・exit_code リセット)。fish と同様、重複コマンドは履歴に 1 行しか残らない
   - 引数のうち記録時点で実在したファイルパスのみを `paths` に保存する (存在しなかった引数は制約にならない)
   - 行 id を stdout に出力し、bash 側の変数に保持

@@ -317,3 +317,37 @@ fn delete_removes_history_entries() {
     assert!(out.status.success());
     assert_eq!(out.stdout, b"");
 }
+
+#[test]
+fn record_ignores_leading_whitespace_commands() {
+    let dir = temp_data_dir();
+    // スペース / タブ始まりのコマンドは記録されない (exit 0・出力なし)
+    for cmd in ["  ls -la", "\tgit status"] {
+        let out = bin()
+            .env("SEASALT_DATA_DIR", &dir)
+            .args(["record", "--cwd", "/a", "--session", "s1", "--", cmd])
+            .output()
+            .unwrap();
+        assert!(out.status.success());
+        assert_eq!(out.stdout, b"");
+    }
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "ls"])
+        .output()
+        .unwrap();
+    assert_eq!(out.stdout, b"");
+
+    // 通常のコマンドは従来どおり記録される
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["record", "--cwd", "/a", "--session", "s1", "--", "ls -la"])
+        .status()
+        .unwrap();
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "ls"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8(out.stdout).unwrap().trim(), "1\tls -la");
+}

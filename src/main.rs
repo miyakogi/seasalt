@@ -78,6 +78,13 @@ fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Record { cwd, session, cmd } => {
             let cmd = cmd.join(" ");
+            // 先頭が空白 (スペース/タブ) のコマンドは記録しない。
+            // シェル履歴の HISTCONTROL=ignorespace と同じセマンティクスで、
+            // パスワードなどのセンシティブな入力が誤って保存されるのを防ぐ。
+            // スニペット側 (_seasalt_preexec) にも同様のガードがある。
+            if cmd.starts_with(' ') || cmd.starts_with('\t') {
+                return Ok(());
+            }
             let started_at = now_ms();
             let paths = seasalt::paths::required_paths(&cwd, &cmd).join("\0");
             let id = seasalt::db::record_history(&conn, &cwd, &cmd, started_at, &session, &paths)?;

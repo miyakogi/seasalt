@@ -27,6 +27,10 @@ file.
   same directory refreshes its existing entry (moving it to the top)
   instead of adding another copy, like fish. Duplicate rows created
   by older versions are left as-is.
+- **Space-prefix suppression** — commands that start with a space or
+  tab are never recorded, like bash's `HISTCONTROL=ignorespace`. Run
+  ` password-command` when you do not want the command (or its
+  arguments, e.g. a secret) to appear in history or suggestions.
 - **Exit-code tracking** — every recorded command stores its exit code,
   so suggestions can be refined by success in the future.
 - **Search CLI** — `seasalt search` queries history across all
@@ -97,6 +101,7 @@ usable by hand:
 seasalt record --cwd DIR --session SESS -- CMD...
     Record a command into history. Prints the row id. Re-running the
     same command in the same directory updates the existing entry.
+    Commands starting with a space or tab are not recorded.
 
 seasalt exit --last-id ID --code CODE
     Store the exit code of a recorded command.

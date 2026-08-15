@@ -91,6 +91,16 @@ run_suite() {
   [[ -z $sugg3 ]] || fail "suggest with deleted file should be empty: $sugg3"
   rmdir "$fdir" 2>/dev/null || true
 
+  # 先頭が空白 (スペース/タブ) のコマンドは記録されない
+  _seasalt_preexec " secret-cmd-xyz"
+  [[ -z $_seasalt_last_id ]] || fail "leading-space command recorded: $_seasalt_last_id"
+  _seasalt_preexec "$(printf '\tsecret-cmd-tab')"
+  [[ -z $_seasalt_last_id ]] || fail "leading-tab command recorded: $_seasalt_last_id"
+  sugg4=$("$BIN" suggest --cwd "$PWD" -- "secret")
+  [[ -z $sugg4 ]] || fail "leading-space command suggested: $sugg4"
+  out=$("$BIN" search --all secret)
+  [[ -z $out ]] || fail "leading-space command in history: $out"
+
   # auto-complete ソースが定義されていること
   declare -F ble/complete/auto-complete/source:seasalt >/dev/null || fail "source fn missing"
 }
