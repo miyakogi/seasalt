@@ -53,6 +53,8 @@ enum Command {
         tsv: bool,
         pattern: String,
     },
+    /// Emit shell integration code (bash)
+    Init { shell: String },
 }
 
 fn main() -> ExitCode {
@@ -108,6 +110,10 @@ fn run(cli: Cli) -> Result<()> {
                 }
             }
         }
+        Command::Init { shell } => match shell.as_str() {
+            "bash" => print!("{}", seasalt::integration::bash_init_script()),
+            other => anyhow::bail!("unsupported shell: {other}"),
+        },
     }
     Ok(())
 }
