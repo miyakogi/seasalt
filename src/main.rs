@@ -77,15 +77,15 @@ fn run(cli: Cli) -> Result<()> {
             let cmd = cmd.join(" ");
             let started_at = now_ms();
             let paths = seasalt::paths::required_paths(&cwd, &cmd).join("\0");
-            let id = seasalt::db::insert_history(&conn, &cwd, &cmd, started_at, &session, &paths)?;
+            let id = seasalt::db::record_history(&conn, &cwd, &cmd, started_at, &session, &paths)?;
             println!("{id}");
         }
         Command::Exit {
-            session,
+            session: _,
             last_id,
             code,
         } => {
-            seasalt::db::update_exit_code(&conn, &session, last_id, code)?;
+            seasalt::db::update_exit_code(&conn, last_id, code)?;
         }
         Command::Suggest { cwd, line } => {
             let line = line.join(" ");

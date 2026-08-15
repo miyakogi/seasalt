@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 
 pub const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS history (
@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS history (
 );
 CREATE INDEX IF NOT EXISTS idx_history_cwd ON history(cwd);
 CREATE INDEX IF NOT EXISTS idx_history_cmd ON history(cmd);
+CREATE INDEX IF NOT EXISTS idx_history_cwd_cmd ON history(cwd, cmd);
 ";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,7 +70,11 @@ fn has_column(conn: &Connection, name: &str) -> Result<bool> {
     Ok(false)
 }
 
-pub fn insert_history(
+/// 履歴を記録する。同一 (cwd, cmd) の既存行があれば新規行を作らず、
+/// その行を最新 (started_at 更新・paths 置換・exit_code リセット) に
+/// 書き換える (fish と同様、重複コマンドは履歴に 1 行しか残らない)。
+/// 行 id を返す。
+pub fn record_history(
     conn: &Connection,
     cwd: &str,
     cmd: &str,
@@ -77,17 +82,38 @@ pub fn insert_history(
     session: &str,
     paths: &str,
 ) -> Result<i64> {
-    conn.execute(
-        "INSERT INTO history (cwd, cmd, started_at, session, paths) VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![cwd, cmd, started_at, session, paths],
-    )?;
-    Ok(conn.last_insert_rowid())
+    let existing: Option<i64> = conn
+        .query_row(
+            "SELECT id FROM history WHERE cwd = ?1 AND cmd = ?2
+             ORDER BY started_at DESC, id DESC LIMIT 1",
+            rusqlite::params![cwd, cmd],
+            |r| r.get(0),
+        )
+        .optional()?;
+    match existing {
+        Some(id) => {
+            conn.execute(
+                "UPDATE history SET started_at = ?1, session = ?2, paths = ?3, exit_code = NULL WHERE id = ?4",
+                rusqlite::params![started_at, session, paths, id],
+            )?;
+            Ok(id)
+        }
+        None => {
+            conn.execute(
+                "INSERT INTO history (cwd, cmd, started_at, session, paths) VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![cwd, cmd, started_at, session, paths],
+            )?;
+            Ok(conn.last_insert_rowid())
+        }
+    }
 }
 
-pub fn update_exit_code(conn: &Connection, session: &str, id: i64, code: i64) -> Result<()> {
+/// 行 id で exit_code を更新する (dedup で行が他セッションの実行に
+/// 書き換わっても正しく追従できるよう、session は照合に使わない)
+pub fn update_exit_code(conn: &Connection, id: i64, code: i64) -> Result<()> {
     conn.execute(
-        "UPDATE history SET exit_code = ?1 WHERE session = ?2 AND id = ?3",
-        rusqlite::params![code, session, id],
+        "UPDATE history SET exit_code = ?1 WHERE id = ?2",
+        rusqlite::params![code, id],
     )?;
     Ok(())
 }

@@ -13,16 +13,16 @@ fn temp_dir() -> std::path::PathBuf {
 
 fn recorded(conn: &Connection, cwd: &str, cmd: &str, started_at: i64) {
     let paths = paths::required_paths(cwd, cmd).join("\0");
-    db::insert_history(conn, cwd, cmd, started_at, "s", &paths).unwrap();
+    db::record_history(conn, cwd, cmd, started_at, "s", &paths).unwrap();
 }
 
 fn seed(conn: &Connection) {
     // started_at を明示制御して「最新」の判定を確定させる
-    db::insert_history(conn, "/proj/sub", "cargo build", 5000, "s", "").unwrap();
-    db::insert_history(conn, "/proj/sub", "cargo test", 4000, "s", "").unwrap();
-    db::insert_history(conn, "/proj", "cargo check", 3000, "s", "").unwrap();
-    db::insert_history(conn, "/other", "cargo doc", 2000, "s", "").unwrap();
-    db::insert_history(conn, "/home", "ls -la", 6000, "s", "").unwrap();
+    db::record_history(conn, "/proj/sub", "cargo build", 5000, "s", "").unwrap();
+    db::record_history(conn, "/proj/sub", "cargo test", 4000, "s", "").unwrap();
+    db::record_history(conn, "/proj", "cargo check", 3000, "s", "").unwrap();
+    db::record_history(conn, "/other", "cargo doc", 2000, "s", "").unwrap();
+    db::record_history(conn, "/home", "ls -la", 6000, "s", "").unwrap();
 }
 
 #[test]
@@ -90,7 +90,7 @@ fn no_match_returns_none() {
 fn suggestion_never_equals_current_line() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    db::insert_history(&conn, "/proj/sub", "cargo build", 5000, "s", "").unwrap();
+    db::record_history(&conn, "/proj/sub", "cargo build", 5000, "s", "").unwrap();
 
     // 直前に実行して記録された同じコマンドは候補にしない
     assert!(suggest::suggest(&conn, "/proj/sub", "cargo build")
@@ -102,7 +102,7 @@ fn suggestion_never_equals_current_line() {
 fn case_insensitive_match() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    db::insert_history(&conn, "/proj/sub", "CARGO BUILD", 5000, "s", "").unwrap();
+    db::record_history(&conn, "/proj/sub", "CARGO BUILD", 5000, "s", "").unwrap();
 
     let got = suggest::suggest(&conn, "/proj/sub", "cargo")
         .unwrap()
@@ -158,7 +158,7 @@ fn falls_back_to_next_candidate() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
     // 最新の候補が削除済みファイルを参照していても、次の候補にフォールバックする
-    db::insert_history(&conn, cwd, "nvim gone.txt", 2000, "s", "gone.txt").unwrap();
+    db::record_history(&conn, cwd, "nvim gone.txt", 2000, "s", "gone.txt").unwrap();
     recorded(&conn, cwd, "nvim live.txt", 1000);
 
     assert_eq!(
