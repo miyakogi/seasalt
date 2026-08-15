@@ -6,7 +6,7 @@ use seasalt::suggest;
 fn temp_dir() -> std::path::PathBuf {
     let name = std::thread::current().name().unwrap_or("t").to_string();
     let dir = std::env::temp_dir().join(format!("seasalt-suggest-{}-{}", std::process::id(), name));
-    let _ = std::fs::remove_dir_all(&dir); // テスト用の一時ディレクトリなので削除してよい
+    let _ = std::fs::remove_dir_all(&dir); // temp dir for the test; safe to delete
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }
@@ -17,7 +17,7 @@ fn recorded(conn: &Connection, cwd: &str, cmd: &str, started_at: i64) {
 }
 
 fn seed(conn: &Connection) {
-    // started_at を明示制御して「最新」の判定を確定させる
+    // started_at is controlled explicitly to make the "latest" decision deterministic
     db::record_history(conn, "/proj/sub", "cargo build", 5000, "s", "").unwrap();
     db::record_history(conn, "/proj/sub", "cargo test", 4000, "s", "").unwrap();
     db::record_history(conn, "/proj", "cargo check", 3000, "s", "").unwrap();
@@ -31,7 +31,7 @@ fn exact_cwd_is_prioritized_over_parent() {
     db::init(&conn).unwrap();
     seed(&conn);
 
-    // /proj/sub では /proj の cargo check ではなく /proj/sub の最新 (cargo build) を返す
+    // In /proj/sub the newest /proj/sub match (cargo build) wins over /proj's cargo check
     let got = suggest::suggest(&conn, "/proj/sub", "cargo")
         .unwrap()
         .unwrap();
@@ -44,7 +44,7 @@ fn parent_is_prioritized_over_global() {
     db::init(&conn).unwrap();
     seed(&conn);
 
-    // /proj/deep/deeper は cwd 一致なし → 親 /proj/deep, /proj を順に探索 → /proj の cargo check
+    // /proj/deep/deeper has no exact match, so parents /proj/deep and /proj are searched in order -> cargo check
     let got = suggest::suggest(&conn, "/proj/deep/deeper", "cargo")
         .unwrap()
         .unwrap();
@@ -57,7 +57,7 @@ fn global_fallback_works() {
     db::init(&conn).unwrap();
     seed(&conn);
 
-    // /nowhere は cwd・親に一致なし → グローバルで最新の ls -la
+    // /nowhere has no cwd/parent match -> the newest global match (ls -la)
     let got = suggest::suggest(&conn, "/nowhere", "ls").unwrap().unwrap();
     assert_eq!(got, "ls -la");
 }
@@ -68,7 +68,7 @@ fn latest_within_scope_wins() {
     db::init(&conn).unwrap();
     seed(&conn);
 
-    // 同一ディレクトリ /proj/sub 内で cargo で始まる最新 = cargo build (5000 > 4000)
+    // Newest cargo-prefixed command within the same directory /proj/sub = cargo build (5000 > 4000)
     let got = suggest::suggest(&conn, "/proj/sub", "cargo")
         .unwrap()
         .unwrap();
@@ -92,7 +92,7 @@ fn suggestion_never_equals_current_line() {
     db::init(&conn).unwrap();
     db::record_history(&conn, "/proj/sub", "cargo build", 5000, "s", "").unwrap();
 
-    // 直前に実行して記録された同じコマンドは候補にしない
+    // The same command just run and recorded is not suggested
     assert!(suggest::suggest(&conn, "/proj/sub", "cargo build")
         .unwrap()
         .is_none());
@@ -138,12 +138,12 @@ fn deleted_file_blocks_suggestion() {
     db::init(&conn).unwrap();
     recorded(&conn, cwd, "nvim a.txt", 1000);
 
-    // ファイルが存在する間はサジェストされる
+    // Suggested while the file exists
     assert_eq!(
         suggest::suggest(&conn, cwd, "nvim").unwrap().unwrap(),
         "nvim a.txt"
     );
-    // 削除すると候補から外れる
+    // Dropped from the candidates once deleted
     std::fs::remove_file(&file).unwrap();
     assert!(suggest::suggest(&conn, cwd, "nvim").unwrap().is_none());
     let _ = std::fs::remove_dir_all(&dir);
@@ -157,7 +157,7 @@ fn falls_back_to_next_candidate() {
     let cwd = dir.to_str().unwrap();
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    // 最新の候補が削除済みファイルを参照していても、次の候補にフォールバックする
+    // Even if the newest candidate references a deleted file, the next candidate is used
     db::record_history(&conn, cwd, "nvim gone.txt", 2000, "s", "gone.txt").unwrap();
     recorded(&conn, cwd, "nvim live.txt", 1000);
 
@@ -165,7 +165,7 @@ fn falls_back_to_next_candidate() {
         suggest::suggest(&conn, cwd, "nvim").unwrap().unwrap(),
         "nvim live.txt"
     );
-    // 両方消えると None
+    // Both gone -> None
     std::fs::remove_file(&live).unwrap();
     assert!(suggest::suggest(&conn, cwd, "nvim").unwrap().is_none());
     let _ = std::fs::remove_dir_all(&dir);
@@ -177,7 +177,7 @@ fn nonexistent_args_do_not_constrain() {
     let cwd = dir.to_str().unwrap();
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    // 記録時点で存在しない引数 (hello など) は制約にならない
+    // Arguments that did not exist at record time (hello etc.) are not constraints
     recorded(&conn, cwd, "echo hello world", 1000);
 
     assert_eq!(
@@ -195,7 +195,7 @@ fn flag_arguments_are_not_paths() {
     db::init(&conn).unwrap();
     recorded(&conn, cwd, "ls -la", 1000);
 
-    // -la はパス扱いされないので常にサジェストされる
+    // -la is not treated as a path, so it is always suggested
     assert_eq!(
         suggest::suggest(&conn, cwd, "ls").unwrap().unwrap(),
         "ls -la"
@@ -235,7 +235,7 @@ fn parent_scope_checks_against_current_cwd() {
     db::init(&conn).unwrap();
     recorded(&conn, parent_str, "nvim p.txt", 1000);
 
-    // 親スコープの候補もカレントディレクトリ (sub) 基準で判定される
+    // Parent-scope candidates are also judged against the current directory (sub)
     assert!(suggest::suggest(&conn, sub_str, "nvim").unwrap().is_none());
     std::fs::write(sub.join("p.txt"), "x").unwrap();
     assert_eq!(
@@ -249,7 +249,7 @@ fn parent_scope_checks_against_current_cwd() {
 fn case_sensitive_match_is_preferred() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    // 新しい icase-only 候補より、古い exact-case 候補が優先される (fish と同じ)
+    // An older exact-case candidate is preferred over a newer icase-only one (like fish)
     db::record_history(&conn, "/proj/sub", "CARGO BUILD", 2000, "s", "").unwrap();
     db::record_history(&conn, "/proj/sub", "cargo build", 1000, "s", "").unwrap();
     let got = suggest::suggest(&conn, "/proj/sub", "cargo")
@@ -275,7 +275,7 @@ fn uppercase_needle_prefers_exact_case() {
     db::init(&conn).unwrap();
     db::record_history(&conn, "/proj/sub", "cargo build", 2000, "s", "").unwrap();
     db::record_history(&conn, "/proj/sub", "Cargo check", 1000, "s", "").unwrap();
-    // 針に大文字が含まれても exact-case が優先される (fish と同じ)
+    // Exact case is preferred even for a needle containing uppercase (like fish)
     let got = suggest::suggest(&conn, "/proj/sub", "Cargo")
         .unwrap()
         .unwrap();
@@ -288,7 +288,7 @@ fn cwd_icase_beats_parent_exact_case() {
     db::init(&conn).unwrap();
     db::record_history(&conn, "/proj/sub", "CARGO BUILD", 2000, "s", "").unwrap();
     db::record_history(&conn, "/proj", "cargo check", 1000, "s", "").unwrap();
-    // スコープ優先は case 優先より上位: cwd の icase 候補が勝つ
+    // Scope priority outranks case priority: the cwd's icase candidate wins
     let got = suggest::suggest(&conn, "/proj/sub", "cargo")
         .unwrap()
         .unwrap();
@@ -302,9 +302,9 @@ fn stale_sensitive_candidate_falls_back_to_icase() {
     std::fs::write(dir.join("live.txt"), "x").unwrap();
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    // exact-case 候補は stale (gone.txt は存在しない)
+    // The exact-case candidate is stale (gone.txt does not exist)
     db::record_history(&conn, cwd, "nvim gone.txt", 2000, "s", "gone.txt").unwrap();
-    // icase-only 候補は有効
+    // The icase-only candidate is valid
     db::record_history(&conn, cwd, "NVIM live.txt", 1000, "s", "live.txt").unwrap();
 
     let got = suggest::suggest(&conn, cwd, "nvim").unwrap().unwrap();

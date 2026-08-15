@@ -39,7 +39,7 @@ fn insert_and_update_exit_code_roundtrip() {
 fn init_is_idempotent() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    db::init(&conn).unwrap(); // 2回目もエラーにならない
+    db::init(&conn).unwrap(); // the second call must not fail either
 }
 
 #[test]
@@ -64,7 +64,7 @@ fn default_db_path_respects_env_override() {
 fn update_exit_code_on_missing_row_is_ok() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    // 存在しない id への update はエラーにしない
+    // Updating a nonexistent id is not an error
     db::update_exit_code(&conn, 999, 0).unwrap();
 }
 
@@ -93,7 +93,7 @@ fn insert_and_read_paths_roundtrip() {
 #[test]
 fn init_adds_paths_column_to_old_schema() {
     let conn = Connection::open_in_memory().unwrap();
-    // paths 列が無い旧スキーマ
+    // Old schema without the paths column
     conn.execute_batch(
         "CREATE TABLE history (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -117,7 +117,7 @@ fn init_adds_paths_column_to_old_schema() {
         .unwrap();
     assert!(cols.contains(&"paths".to_string()));
 
-    // マイグレーション後も挿入できる
+    // Insertion works after the migration
     let id = db::record_history(&conn, "/tmp/a", "echo hello", 1000, "s1", "x.txt").unwrap();
     let got: String = conn
         .query_row("SELECT paths FROM history WHERE id = ?1", [id], |r| {
@@ -134,7 +134,7 @@ fn record_dedups_same_command_and_bumps_to_latest() {
 
     let id1 = db::record_history(&conn, "/tmp/a", "nvim a.txt", 1000, "s1", "a.txt").unwrap();
     let id2 = db::record_history(&conn, "/tmp/a", "nvim b.txt", 2000, "s1", "b.txt").unwrap();
-    // 非連続でも同一 (cwd, cmd) は新規行を作らず、既存行が最新化される
+    // Even non-consecutive duplicates with the same (cwd, cmd) refresh the existing row
     let id3 = db::record_history(&conn, "/tmp/a", "nvim a.txt", 3000, "s2", "").unwrap();
 
     assert_eq!(id1, id3);
@@ -179,7 +179,7 @@ fn deduped_record_resets_exit_code_until_exit() {
     db::init(&conn).unwrap();
     let id = db::record_history(&conn, "/tmp/a", "make", 1000, "s1", "").unwrap();
     db::update_exit_code(&conn, id, 0).unwrap();
-    // 再実行で dedup されると exit_code は未確定に戻る
+    // A re-run that dedups resets exit_code to undetermined
     db::record_history(&conn, "/tmp/a", "make", 2000, "s2", "").unwrap();
     let code: Option<i64> = conn
         .query_row("SELECT exit_code FROM history WHERE id = ?1", [id], |r| {
@@ -187,7 +187,7 @@ fn deduped_record_resets_exit_code_until_exit() {
         })
         .unwrap();
     assert_eq!(code, None);
-    // session が書き換わっていても id だけで照合できる
+    // The row matches by id even after its session was rewritten
     db::update_exit_code(&conn, id, 7).unwrap();
     let code: Option<i64> = conn
         .query_row("SELECT exit_code FROM history WHERE id = ?1", [id], |r| {
@@ -238,7 +238,7 @@ fn existing_data_dir_and_db_permissions_are_left_unchanged() {
         std::thread::current().name().unwrap_or("t")
     ));
     let _ = std::fs::remove_dir_all(&base);
-    // 既存環境の再現: 0755 ディレクトリ + 0644 DB
+    // Reproduce an existing environment: 0755 directory + 0644 DB
     std::fs::create_dir_all(&base).unwrap();
     std::fs::set_permissions(&base, std::fs::Permissions::from_mode(0o755)).unwrap();
     let path = base.join("history.sqlite3");
@@ -287,7 +287,7 @@ fn delete_by_ids_ignores_nonexistent_ids() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
     let id = db::record_history(&conn, "/a", "one", 1000, "s", "").unwrap();
-    // 存在しない id もエラーにしない
+    // Nonexistent ids are not an error either
     db::delete_by_ids(&conn, &[id, 999]).unwrap();
     let count: i64 = conn
         .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
@@ -302,10 +302,10 @@ fn suggest_in_dir_is_case_sensitive_when_requested() {
     db::record_history(&conn, "/x", "Cargo build", 2000, "s", "").unwrap();
     db::record_history(&conn, "/x", "cargo check", 1000, "s", "").unwrap();
 
-    // 従来の検索 (case-insensitive) は両方にヒットする
+    // The legacy search (case-insensitive) matches both rows
     let icase = db::suggest_in_dir(&conn, "/x", "cargo", 10, false).unwrap();
     assert_eq!(icase.len(), 2);
-    // sensitive 検索は大文字小文字を区別する
+    // The sensitive search distinguishes case
     let sensitive = db::suggest_in_dir(&conn, "/x", "cargo", 10, true).unwrap();
     assert_eq!(sensitive.len(), 1);
     assert_eq!(sensitive[0].0, "cargo check");

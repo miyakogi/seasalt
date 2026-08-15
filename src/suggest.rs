@@ -4,10 +4,10 @@ use rusqlite::Connection;
 use crate::db;
 use crate::paths;
 
-/// 各スコープで調査する候補の最大件数
+/// Maximum number of candidates examined per scope
 const CANDIDATE_LIMIT: usize = 10;
 
-/// 親ディレクトリを近い順に列挙(ルート自体は含まない)
+/// Lists the parent directories in order of closeness (root itself is not included)
 pub fn ancestors(cwd: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = std::path::Path::new(cwd);
@@ -22,18 +22,18 @@ pub fn ancestors(cwd: &str) -> Vec<String> {
     out
 }
 
-/// 候補の選択結果
+/// Result of selecting among candidates
 enum Outcome {
-    /// 提案するコマンド
+    /// Command to suggest
     Suggest(String),
-    /// 入力行と同一のコマンドが見つかった (提案しない)
+    /// A candidate identical to the input line was found (no suggestion)
     Identical,
-    /// 有効な候補が無かった
+    /// No valid candidate was found
     NoMatch,
 }
 
-/// 候補リストから最初の有効な候補を選ぶ。
-/// 削除済みファイルを参照する候補はスキップし、入力行と同一なら Identical。
+/// Picks the first valid candidate. Candidates referencing deleted
+/// files are skipped; Identical is returned when one equals the line.
 fn pick(cwd: &str, line: &str, candidates: Vec<(String, String)>) -> Outcome {
     for (cmd, paths) in candidates {
         if !paths::valid(cwd, &paths) {
@@ -48,8 +48,8 @@ fn pick(cwd: &str, line: &str, candidates: Vec<(String, String)>) -> Outcome {
     Outcome::NoMatch
 }
 
-/// 一つのスコープを検索する。exact-case 一致を優先し、
-/// 無ければ case-insensitive の最新候補にフォールバックする (fish と同じ)。
+/// Searches one scope. Exact-case matches are preferred, falling back
+/// to the latest case-insensitive match (like fish).
 fn search_scope(conn: &Connection, cwd: &str, line: &str, dir: Option<&str>) -> Result<Outcome> {
     let sensitive = match dir {
         Some(dir) => db::suggest_in_dir(conn, dir, line, CANDIDATE_LIMIT, true)?,
@@ -70,13 +70,13 @@ pub fn suggest(conn: &Connection, cwd: &str, line: &str) -> Result<Option<String
     if line.trim().is_empty() {
         return Ok(None);
     }
-    // スコープ 1: cwd 完全一致
+    // Scope 1: exact cwd match
     match search_scope(conn, cwd, line, Some(cwd))? {
         Outcome::Suggest(cmd) => return Ok(Some(cmd)),
         Outcome::Identical => return Ok(None),
         Outcome::NoMatch => {}
     }
-    // スコープ 2: 親ディレクトリ(近い順)
+    // Scope 2: parent directories (nearest first)
     for anc in ancestors(cwd) {
         match search_scope(conn, cwd, line, Some(&anc))? {
             Outcome::Suggest(cmd) => return Ok(Some(cmd)),
@@ -84,7 +84,7 @@ pub fn suggest(conn: &Connection, cwd: &str, line: &str) -> Result<Option<String
             Outcome::NoMatch => {}
         }
     }
-    // スコープ 3: グローバル
+    // Scope 3: global
     match search_scope(conn, cwd, line, None)? {
         Outcome::Suggest(cmd) => Ok(Some(cmd)),
         Outcome::Identical | Outcome::NoMatch => Ok(None),

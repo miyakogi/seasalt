@@ -3,7 +3,7 @@ use seasalt::paths;
 fn temp_dir() -> std::path::PathBuf {
     let name = std::thread::current().name().unwrap_or("t").to_string();
     let dir = std::env::temp_dir().join(format!("seasalt-paths-{}-{}", std::process::id(), name));
-    let _ = std::fs::remove_dir_all(&dir); // テスト用の一時ディレクトリなので削除してよい
+    let _ = std::fs::remove_dir_all(&dir); // temp dir for the test; safe to delete
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }
@@ -14,7 +14,7 @@ fn detects_existing_files_only() {
     std::fs::write(dir.join("a.txt"), "x").unwrap();
     let cwd = dir.to_str().unwrap();
 
-    // a.txt のみ存在 → a.txt だけ返す
+    // Only a.txt exists -> returns only a.txt
     assert_eq!(
         paths::required_paths(cwd, "nvim a.txt b.txt"),
         vec!["a.txt"]
@@ -34,7 +34,7 @@ fn command_word_is_not_a_path() {
     std::fs::write(dir.join("nvim"), "x").unwrap();
     let cwd = dir.to_str().unwrap();
 
-    // 先頭トークン (コマンド名) はパス判定しない。ファイル名 nvim があっても無関係
+    // The first token (command name) is not judged as a path; a file named nvim is irrelevant
     assert_eq!(
         paths::required_paths(cwd, "nvim a.txt"),
         Vec::<String>::new()
@@ -50,7 +50,7 @@ fn skips_flags_operators_and_cmdsubst() {
     let got = paths::required_paths(cwd, "git push origin main && echo hi > out.txt");
     assert_eq!(got, Vec::<String>::new());
 
-    // コマンド置換を含むトークンは判定しない
+    // Tokens containing command substitutions are not judged
     assert_eq!(
         paths::required_paths(cwd, "nvim $(date).txt"),
         Vec::<String>::new()
@@ -104,13 +104,13 @@ fn valid_checks_against_current_cwd() {
     std::fs::write(dir.join("a.txt"), "x").unwrap();
     let cwd = dir.to_str().unwrap();
 
-    // 存在するパス → true
+    // Existing path -> true
     assert!(paths::valid(cwd, "a.txt"));
     let abs = dir.join("a.txt").to_str().unwrap().to_string();
     assert!(paths::valid(cwd, &abs));
-    // 存在しないパス → false
+    // Nonexistent path -> false
     assert!(!paths::valid(cwd, "b.txt"));
-    // 空は常に true
+    // Empty is always true
     assert!(paths::valid(cwd, ""));
     let _ = std::fs::remove_dir_all(&dir);
 }

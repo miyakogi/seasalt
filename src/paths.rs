@@ -4,22 +4,24 @@ const OPERATORS: &[&str] = &[
     "|", "||", "|&", "&&", "&", ";", ";;", "<", ">", ">>", "<<", "(", ")", "{", "}", "!", "$",
 ];
 
-/// コマンドの引数のうち、記録時点で cwd 基準に存在するものを返す
-/// (fish の required_paths 相当)。コマンド名・フラグ・シェル演算子・
-/// コマンド置換・`.`/`..` はパス判定しない。存在しない引数は制約にならないため
-/// `echo hello` や `git push` のような引数は常に候補に残る。
+/// Returns the arguments of the command that exist relative to cwd at
+/// record time (fish's required_paths equivalent). The command name,
+/// flags, shell operators, command substitutions and `.`/`..` are not
+/// treated as paths. Arguments that do not exist are not constraints,
+/// so arguments like `echo hello` or `git push` always keep the
+/// candidate visible.
 pub fn required_paths(cwd: &str, cmd: &str) -> Vec<String> {
     let tokens = tokenize(cmd);
     let mut out = Vec::new();
     for (i, tok) in tokens.iter().enumerate() {
         if i == 0 {
-            continue; // コマンド名
+            continue; // command name
         }
         if tok.is_empty() || tok.starts_with('-') || is_operator(tok) {
             continue;
         }
         if tok.contains("$(") || tok.contains('`') {
-            continue; // コマンド置換は展開しない
+            continue; // command substitutions are not expanded
         }
         let path = unquote(tok);
         if path.is_empty() || matches!(path.as_str(), "." | ".." | "./" | "../") {
@@ -32,7 +34,7 @@ pub fn required_paths(cwd: &str, cmd: &str) -> Vec<String> {
     out
 }
 
-/// 保存済みの必須パス (NUL 区切り) が全て現在の cwd 基準で存在すれば true
+/// Returns true if all the required paths (NUL-separated) exist relative to the current cwd
 pub fn valid(cwd: &str, paths: &str) -> bool {
     if paths.is_empty() {
         return true;
@@ -54,7 +56,7 @@ fn is_operator(tok: &str) -> bool {
     OPERATORS.contains(&tok)
 }
 
-/// 周囲の対応するクォートを外す
+/// Removes the surrounding matching quotes
 fn unquote(tok: &str) -> String {
     if tok.len() >= 2 {
         let first = tok.chars().next().unwrap();
@@ -66,8 +68,8 @@ fn unquote(tok: &str) -> String {
     tok.to_string()
 }
 
-/// クォートとバックスラッシュを考慮した空白区切りのトークン化。
-/// バックスラッシュはエスケープ文字として次の 1 文字に付与される (バックスラッシュ自体は消える)。
+/// Tokenizes by whitespace, honoring quotes and backslashes. A
+/// backslash escapes the next character (the backslash itself is dropped).
 fn tokenize(cmd: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();

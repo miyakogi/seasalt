@@ -5,10 +5,10 @@ fn bin() -> Command {
 }
 
 fn temp_data_dir() -> std::path::PathBuf {
-    // テストごとにユニークなディレクトリにする(並列実行時に他テストと DB を共有しないため)
+    // Unique directory per test (parallel runs must not share the DB)
     let name = std::thread::current().name().unwrap_or("t").to_string();
     let dir = std::env::temp_dir().join(format!("seasalt-cli-{}-{}", std::process::id(), name));
-    let _ = std::fs::remove_dir_all(&dir); // テスト用の一時ディレクトリなので削除してよい
+    let _ = std::fs::remove_dir_all(&dir); // temp dir for the test; safe to delete
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }
@@ -42,7 +42,7 @@ fn record_then_exit_then_search() {
         .unwrap();
     assert!(out.status.success());
     let text = String::from_utf8(out.stdout).unwrap();
-    // tsv 形式: id\tcwd\tcmd\texit_code\tstarted_at (started_at は実時刻のため後半のみ確認)
+    // tsv format: id\tcwd\tcmd\texit_code\tstarted_at (started_at is the real time, so only check the rest)
     let fields: Vec<&str> = text.trim().split('\t').collect();
     assert_eq!(fields[0..4], ["1", "/tmp/x", "echo hello", "0"]);
     assert!(!fields[4].is_empty());
@@ -81,7 +81,7 @@ fn record_dedups_identical_command() {
     let id2 = String::from_utf8(second.stdout).unwrap();
     assert_eq!(id1.trim(), id2.trim());
 
-    // 履歴には 1 行だけ残る
+    // Only one row remains in history
     let out = bin()
         .env("SEASALT_DATA_DIR", &dir)
         .args(["search", "--tsv", "hello"])
@@ -106,7 +106,7 @@ fn search_filters_by_cwd() {
         .output()
         .unwrap();
     let text = String::from_utf8(out.stdout).unwrap();
-    // デフォルト出力は id<TAB>cmd
+    // Default output is id<TAB>cmd
     assert_eq!(text.trim(), "1\tone");
 }
 
@@ -133,7 +133,7 @@ fn suggest_end_to_end() {
         .unwrap();
     assert_eq!(String::from_utf8(out.stdout).unwrap().trim(), "cargo build");
 
-    // 候補なし → 空出力・成功終了
+    // No candidate -> empty output, successful exit
     let out = bin()
         .env("SEASALT_DATA_DIR", &dir)
         .args(["suggest", "--cwd", "/proj", "--", "nothing"])
@@ -170,7 +170,7 @@ fn record_stores_existing_paths() {
     std::fs::write(files.join("a.txt"), "x").unwrap();
     let cwd = files.to_str().unwrap();
 
-    // 実在ファイル → paths に保存される
+    // Existing file -> saved in paths
     bin()
         .env("SEASALT_DATA_DIR", &dir)
         .args([
@@ -184,7 +184,7 @@ fn record_stores_existing_paths() {
         ])
         .status()
         .unwrap();
-    // 存在しないファイル → paths は空
+    // Nonexistent file -> empty paths
     bin()
         .env("SEASALT_DATA_DIR", &dir)
         .args([
@@ -245,7 +245,7 @@ fn suggest_filters_deleted_files() {
         .status()
         .unwrap();
 
-    // 存在する間はサジェストされる
+    // Suggested while the file exists
     let out = bin()
         .env("SEASALT_DATA_DIR", &dir)
         .args(["suggest", "--cwd", cwd, "--", "nvim"])
@@ -253,7 +253,7 @@ fn suggest_filters_deleted_files() {
         .unwrap();
     assert_eq!(String::from_utf8(out.stdout).unwrap().trim(), "nvim a.txt");
 
-    // 削除するとサジェストされない
+    // Not suggested once deleted
     std::fs::remove_file(files.join("a.txt")).unwrap();
     let out = bin()
         .env("SEASALT_DATA_DIR", &dir)
@@ -277,7 +277,7 @@ fn delete_removes_history_entries() {
             .unwrap();
     }
 
-    // 複数 id を一括削除。成功時は何も出力しない
+    // Multiple ids are deleted at once; nothing is printed on success
     let out = bin()
         .env("SEASALT_DATA_DIR", &dir)
         .args(["delete", "1", "3"])
@@ -286,7 +286,7 @@ fn delete_removes_history_entries() {
     assert!(out.status.success());
     assert_eq!(out.stdout, b"");
 
-    // 削除したコマンドは search にも suggest にも出ない
+    // Deleted commands disappear from both search and suggest
     let out = bin()
         .env("SEASALT_DATA_DIR", &dir)
         .args(["search", "--all", "one"])
@@ -300,7 +300,7 @@ fn delete_removes_history_entries() {
         .unwrap();
     assert_eq!(out.stdout, b"");
 
-    // 残った行はデフォルト出力 id<TAB>cmd で確認できる
+    // The remaining row is visible in the default id<TAB>cmd output
     let out = bin()
         .env("SEASALT_DATA_DIR", &dir)
         .args(["search", "--all", "two"])
@@ -308,7 +308,7 @@ fn delete_removes_history_entries() {
         .unwrap();
     assert_eq!(String::from_utf8(out.stdout).unwrap().trim(), "2\ttwo");
 
-    // 存在しない id を指定しても静かに成功する
+    // Nonexistent ids are silently accepted
     let out = bin()
         .env("SEASALT_DATA_DIR", &dir)
         .args(["delete", "999"])
@@ -322,7 +322,7 @@ fn delete_removes_history_entries() {
 fn record_ignores_leading_whitespace_commands() {
     let dir = temp_data_dir();
 
-    // スペース / タブ始まりのコマンドは記録されない (exit 0・出力なし)
+    // Commands starting with space/tab are not recorded (exit 0, no output)
     for cmd in ["  ls -la", "\tgit status"] {
         let out = bin()
             .env("SEASALT_DATA_DIR", &dir)
@@ -339,7 +339,7 @@ fn record_ignores_leading_whitespace_commands() {
         .unwrap();
     assert_eq!(out.stdout, b"");
 
-    // 通常のコマンドは従来どおり記録される
+    // Normal commands are still recorded
     bin()
         .env("SEASALT_DATA_DIR", &dir)
         .args(["record", "--cwd", "/a", "--session", "s1", "--", "ls -la"])
@@ -370,7 +370,7 @@ fn init_does_not_create_data_dir() {
         .unwrap();
     assert!(out.status.success());
     assert!(!out.stdout.is_empty());
-    // init は DB を作成しない (スニペット出力のみ)
+    // init does not create the DB (it only prints the snippet)
     assert!(!dir.exists());
 
     let _ = std::fs::remove_dir_all(&dir);
@@ -378,8 +378,8 @@ fn init_does_not_create_data_dir() {
 
 #[test]
 fn record_failure_is_silent() {
-    // 書き込み不能なデータディレクトリで record は失敗するが、
-    // フックから呼ばれるため stderr には何も出さない
+    // record fails with an unwritable data directory, but because it is
+    // called from hooks, nothing goes to stderr
     let out = bin()
         .env("SEASALT_DATA_DIR", "/proc/seasalt-test-readonly")
         .args(["record", "--cwd", "/x", "--session", "s1", "--", "echo hi"])

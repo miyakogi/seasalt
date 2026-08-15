@@ -62,8 +62,8 @@ enum Command {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    // 対話的コマンド (init/search/delete) のエラーは stderr に出す。
-    // フックから呼ばれる record/exit/suggest は静かに失敗する。
+    // Interactive commands (init/search/delete) report errors to stderr;
+    // hook-facing record/exit/suggest fail silently.
     let interactive = matches!(
         cli.command,
         Command::Init { .. } | Command::Search { .. } | Command::Delete { .. }
@@ -84,10 +84,10 @@ fn run(cli: Cli) -> Result<()> {
         Command::Record { cwd, session, cmd } => {
             let conn = open_db()?;
             let cmd = cmd.join(" ");
-            // 先頭が空白 (スペース/タブ) のコマンドは記録しない。
-            // シェル履歴の HISTCONTROL=ignorespace と同じセマンティクスで、
-            // パスワードなどのセンシティブな入力が誤って保存されるのを防ぐ。
-            // スニペット側 (_seasalt_preexec) にも同様のガードがある。
+            // Do not record commands starting with whitespace
+            // (space/tab), matching HISTCONTROL=ignorespace, so
+            // sensitive input such as passwords is never stored. The
+            // snippet (_seasalt_preexec) has the same guard.
             if cmd.starts_with(' ') || cmd.starts_with('\t') {
                 return Ok(());
             }

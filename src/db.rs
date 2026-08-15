@@ -38,8 +38,9 @@ pub fn default_db_path() -> Result<PathBuf> {
     let existed = base.exists();
     std::fs::create_dir_all(&base)
         .with_context(|| format!("cannot create data directory {}", base.display()))?;
-    // 新規作成時のみ 0700 にする (既存のディレクトリは変更しない)。
-    // ディレクトリを 0700 にすることで WAL ファイル (-wal/-shm) も保護される。
+    // Set 0700 only when the directory is newly created (existing
+    // directories are left untouched). A 0700 directory also protects
+    // the WAL files (-wal/-shm).
     if !existed {
         restrict_dir(&base)?;
     }
@@ -51,7 +52,7 @@ pub fn open(path: &Path) -> Result<Connection> {
     let existed = is_memory || path.exists();
     let conn = Connection::open(path).with_context(|| format!("cannot open {}", path.display()))?;
     if !is_memory {
-        // 新規作成時のみ 0600 にする (既存のファイルは変更しない)
+        // Set 0600 only when the file is newly created (existing files are left untouched)
         if !existed {
             restrict_file(path)?;
         }
@@ -77,7 +78,7 @@ fn restrict_file(path: &Path) -> Result<()> {
 
 pub fn init(conn: &Connection) -> Result<()> {
     conn.execute_batch(SCHEMA)?;
-    // 旧スキーマ (paths 列なし) からのマイグレーション
+    // Migration from the old schema (without the paths column)
     if !has_column(conn, "paths")? {
         conn.execute_batch("ALTER TABLE history ADD COLUMN paths TEXT NOT NULL DEFAULT ''")?;
     }
@@ -96,10 +97,11 @@ fn has_column(conn: &Connection, name: &str) -> Result<bool> {
     Ok(false)
 }
 
-/// 履歴を記録する。同一 (cwd, cmd) の既存行があれば新規行を作らず、
-/// その行を最新 (started_at 更新・paths 置換・exit_code リセット) に
-/// 書き換える (fish と同様、重複コマンドは履歴に 1 行しか残らない)。
-/// 行 id を返す。
+/// Records a command in history. If a row with the same (cwd, cmd)
+/// already exists, it is refreshed instead of inserting a new one
+/// (started_at/session/paths are updated, exit_code is reset). Like
+/// fish, a duplicate command leaves only one row in history. Returns
+/// the row id.
 pub fn record_history(
     conn: &Connection,
     cwd: &str,
@@ -134,8 +136,8 @@ pub fn record_history(
     }
 }
 
-/// 行 id で exit_code を更新する (dedup で行が他セッションの実行に
-/// 書き換わっても正しく追従できるよう、session は照合に使わない)
+/// Updates the exit_code of a row by id. The session is not used for
+/// matching: dedup may rewrite the row for another session's execution.
 pub fn update_exit_code(conn: &Connection, id: i64, code: i64) -> Result<()> {
     conn.execute(
         "UPDATE history SET exit_code = ?1 WHERE id = ?2",
@@ -144,8 +146,8 @@ pub fn update_exit_code(conn: &Connection, id: i64, code: i64) -> Result<()> {
     Ok(())
 }
 
-/// 指定した id の履歴行を削除する。存在しない id は静かに無視する
-/// (誤ってパスワードなどを記録してしまった行の削除に使う)。
+/// Deletes history rows by id. Nonexistent ids are silently ignored
+/// (used to remove rows that accidentally recorded secrets).
 pub fn delete_by_ids(conn: &Connection, ids: &[i64]) -> Result<()> {
     let mut stmt = conn.prepare("DELETE FROM history WHERE id = ?1")?;
     for id in ids {
@@ -154,9 +156,9 @@ pub fn delete_by_ids(conn: &Connection, ids: &[i64]) -> Result<()> {
     Ok(())
 }
 
-/// prefix 一致の候補を新しい順に最大 limit 件返す (cmd, paths)。
-/// sensitive なら大文字小文字を区別する (fish の autosuggestion は
-/// exact-case 一致を優先するため)。
+/// Returns the prefix-matching candidates in descending order of
+/// recency, up to limit (cmd, paths). When sensitive, matching is
+/// case-sensitive (fish's autosuggestion prefers exact-case matches).
 pub fn suggest_in_dir(
     conn: &Connection,
     cwd: &str,
@@ -167,8 +169,9 @@ pub fn suggest_in_dir(
     suggest_prefix(conn, Some(cwd), needle, limit, sensitive)
 }
 
-/// prefix 一致の候補を新しい順に最大 limit 件返す (cmd, paths)。
-/// sensitive なら大文字小文字を区別する。
+/// Returns the prefix-matching candidates in descending order of
+/// recency, up to limit (cmd, paths). When sensitive, matching is
+/// case-sensitive.
 pub fn suggest_global(
     conn: &Connection,
     needle: &str,
@@ -188,9 +191,8 @@ fn suggest_prefix(
     if needle.is_empty() {
         return Ok(Vec::new());
     }
-    // 大文字小文字を区別する場合は GLOB (case-sensitive) を使う。
-    // SQLite の LIKE は COLLATE BINARY を適用しても ASCII の
-    // case-insensitive のままのため。
+    // Use GLOB (case-sensitive) for case-sensitive matching: SQLite
+    // LIKE stays ASCII case-insensitive even with COLLATE BINARY.
     let (like, pattern) = if sensitive {
         ("GLOB", format!("{}*", escape_glob(needle)))
     } else {
@@ -220,7 +222,7 @@ fn suggest_prefix(
     Ok(out)
 }
 
-/// GLOB パターンの特殊文字 (* ? [ ] \) をエスケープする
+/// Escapes the GLOB special characters (* ? [ ] \)
 fn escape_glob(s: &str) -> String {
     s.chars()
         .flat_map(|c| match c {
