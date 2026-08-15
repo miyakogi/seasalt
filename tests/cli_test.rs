@@ -375,3 +375,16 @@ fn init_does_not_create_data_dir() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn record_failure_is_silent() {
+    // 書き込み不能なデータディレクトリで record は失敗するが、
+    // フックから呼ばれるため stderr には何も出さない
+    let out = bin()
+        .env("SEASALT_DATA_DIR", "/proc/seasalt-test-readonly")
+        .args(["record", "--cwd", "/x", "--session", "s1", "--", "echo hi"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert_eq!(out.stderr, b"");
+}

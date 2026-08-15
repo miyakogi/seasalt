@@ -62,11 +62,18 @@ enum Command {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
+    // 対話的コマンド (init/search/delete) のエラーは stderr に出す。
+    // フックから呼ばれる record/exit/suggest は静かに失敗する。
+    let interactive = matches!(
+        cli.command,
+        Command::Init { .. } | Command::Search { .. } | Command::Delete { .. }
+    );
     match run(cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            // 静かに失敗: シェル統合から呼ばれるため stderr は出さない
-            let _ = e;
+            if interactive {
+                eprintln!("seasalt: {e:#}");
+            }
             ExitCode::FAILURE
         }
     }

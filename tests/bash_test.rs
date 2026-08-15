@@ -101,4 +101,7 @@ fn init_bash_rejects_unknown_shell() {
         .output()
         .unwrap();
     assert!(!out.status.success());
+    // 対話的コマンドはエラーを stderr に出す
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("unsupported shell: zsh"), "stderr: {err}");
 }
