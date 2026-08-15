@@ -60,20 +60,22 @@ CREATE TABLE history (
 );
 CREATE INDEX idx_history_cwd ON history(cwd);
 CREATE INDEX idx_history_cmd ON history(cmd);
+CREATE INDEX idx_history_cwd_cmd ON history(cwd, cmd);
 ```
 
-`paths` には record 時点で実在したファイル引数のパスを NUL 区切りで保存する(詳細は §6)。旧スキーマ(`paths` 列なし)の DB は初回接続時に `ALTER TABLE ... ADD COLUMN` で自動マイグレーションされる。
+`paths` には record 時点で実在したファイル引数のパスを NUL 区切りで保存する(詳細は §6)。`(cwd, cmd)` の複合インデックスは record 時の重複判定に使う。旧スキーマ(`paths` 列なし)の DB は初回接続時に `ALTER TABLE ... ADD COLUMN` で自動マイグレーションされる。
 
 ## 4. コンポーネント
 
 ### Rust コア(シングルバイナリ `seasalt`)
 
 - `seasalt record --cwd DIR -- CMD`
-  - preexec フックから呼ばれ履歴を insert(実行前時点のエントリ作成)
-  - 引数のうち記録時点で実在したファイルパスのみを `paths` に保存する(存在しなかった引数は制約にならない)
-  - 新しい行の rowid を stdout に出力し、bash 側の変数に保持
-- `seasalt exit --session SESSION --last-id N --code CODE`
-  - precmd フックから呼ばれ、`(session, id)` で特定したエントリに exit_code を update
+  - preexec フックから呼ばれ履歴を記録する (実行前時点のエントリ作成)
+  - 同一 (cwd, cmd) の既存行があれば新規行を作らず、その行を最新化する (started_at 更新・paths 置換・exit_code リセット)。fish と同様、重複コマンドは履歴に 1 行しか残らない
+  - 引数のうち記録時点で実在したファイルパスのみを `paths` に保存する (存在しなかった引数は制約にならない)
+  - 行 id を stdout に出力し、bash 側の変数に保持
+- `seasalt exit --last-id N --code CODE`
+  - precmd フックから呼ばれ、行 id で特定したエントリに exit_code を update する (session は照合に使わない: dedup で行が他セッションの実行に書き換わり得るため)
 - `seasalt suggest --cwd DIR -- LINE`
   - フォルダスコープで prefix 一致の最良候補を stdout に出力
   - スコープ: cwd 完全一致 → 親ディレクトリ順(深さ優先で近い方から)→ グローバル
@@ -126,6 +128,13 @@ CREATE INDEX idx_history_cmd ON history(cmd);
 - suggest 時に、保存されたパスが「suggest 時点の cwd」基準で存在しなければ、その候補をスキップして次の候補へフォールバックする
 - 記録時点で存在しなかった引数(`echo hello` の `hello`、`git push` の `push` など)は制約にならない
 - 相対パスは record 時の cwd ではなく suggest 時点の cwd 基準で判定し、絶対パスはそのまま判定する
+
+### 履歴の重複除去 (fish パリティ)
+
+- record 時に同一 (cwd, cmd) の既存行があれば、新規 insert せずに行を最新化する (started_at 更新・paths 置換・exit_code リセット)
+- 同一コマンドは連続・非連続を問わず 1 行しか残らない (fish の "Any duplicate history items are automatically removed" に相当。fish はコマンド文字列のみで判定するが、seasalt はディレクトリ別スコープが本体のため (cwd, cmd) をキーにする)
+- 既に溜まっている旧データの重複行は放置する (新規 record からのみ dedup が効く)
+- トレードオフ: 中間実行の時刻・exit code は残らない (最後の実行分のみ)
 
 ## 7. エラー処理
 

@@ -23,6 +23,10 @@ file.
   (the next candidate is tried instead). Only arguments that were
   existing files when the command was recorded constrain matching, so
   `echo hello` or `git push` are unaffected.
+- **Duplicate suppression** — re-running the same command in the
+  same directory refreshes its existing entry (moving it to the top)
+  instead of adding another copy, like fish. Duplicate rows created
+  by older versions are left as-is.
 - **Exit-code tracking** — every recorded command stores its exit code,
   so suggestions can be refined by success in the future.
 - **Search CLI** — `seasalt search` queries history across all
@@ -87,9 +91,10 @@ usable by hand:
 
 ```
 seasalt record --cwd DIR --session SESS -- CMD...
-    Record a command into history. Prints the row id.
+    Record a command into history. Prints the row id. Re-running the
+    same command in the same directory updates the existing entry.
 
-seasalt exit --session SESS --last-id ID --code CODE
+seasalt exit --last-id ID --code CODE
     Store the exit code of a recorded command.
 
 seasalt suggest --cwd DIR -- LINE...
