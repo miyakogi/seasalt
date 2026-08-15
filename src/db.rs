@@ -73,3 +73,44 @@ pub fn update_exit_code(conn: &Connection, session: &str, id: i64, code: i64) ->
     )?;
     Ok(())
 }
+
+pub fn suggest_in_dir(conn: &Connection, cwd: &str, needle: &str) -> Result<Option<String>> {
+    if needle.is_empty() {
+        return Ok(None);
+    }
+    let pattern = format!("{}%", escape_like(needle));
+    let mut stmt = conn.prepare(
+        "SELECT cmd FROM history WHERE cwd = ?1 AND cmd LIKE ?2 ESCAPE '\\'
+         ORDER BY started_at DESC, id DESC LIMIT 1",
+    )?;
+    let mut rows = stmt.query(rusqlite::params![cwd, pattern])?;
+    if let Some(row) = rows.next()? {
+        return Ok(Some(row.get(0)?));
+    }
+    Ok(None)
+}
+
+pub fn suggest_global(conn: &Connection, needle: &str) -> Result<Option<String>> {
+    if needle.is_empty() {
+        return Ok(None);
+    }
+    let pattern = format!("{}%", escape_like(needle));
+    let mut stmt = conn.prepare(
+        "SELECT cmd FROM history WHERE cmd LIKE ?1 ESCAPE '\\'
+         ORDER BY started_at DESC, id DESC LIMIT 1",
+    )?;
+    let mut rows = stmt.query(rusqlite::params![pattern])?;
+    if let Some(row) = rows.next()? {
+        return Ok(Some(row.get(0)?));
+    }
+    Ok(None)
+}
+
+fn escape_like(s: &str) -> String {
+    s.chars()
+        .flat_map(|c| match c {
+            '%' | '_' | '\\' => vec!['\\', c],
+            other => vec![other],
+        })
+        .collect()
+}
