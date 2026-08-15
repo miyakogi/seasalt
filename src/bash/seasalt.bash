@@ -28,14 +28,13 @@ if [[ "$_seasalt_bin" ]]; then
       blehook PRECMD+=_seasalt_precmd;
       _seasalt_hooked=1;
     fi;
-    if [[ "${_ble_complete_auto_source+_}" ]]; then
-      case " ${_ble_complete_auto_source[*]} " in
-        (*" seasalt "*) ;;
-        (*) _ble_complete_auto_source=(seasalt "${_ble_complete_auto_source[@]}") ;;
-      esac;
-    else
-      _ble_complete_auto_source=(seasalt history syntax);
-    fi;
+    ble/util/idle.push '
+      [[ ${_ble_complete_auto_source+_} ]] || _ble_complete_auto_source=(history syntax);
+      local _seasalt_source _seasalt_sources=();
+      for _seasalt_source in "${_ble_complete_auto_source[@]}"; do
+        [[ $_seasalt_source == seasalt ]] || _seasalt_sources+=("$_seasalt_source");
+      done;
+      _ble_complete_auto_source=(seasalt "${_seasalt_sources[@]}");';
 
     function ble/complete/auto-complete/source:seasalt {
       local _seasalt_empty='';

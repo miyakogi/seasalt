@@ -8,15 +8,23 @@ export SEASALT_BIN="$BIN"
 fail() { echo "FAIL: $1"; exit 1; }
 
 # フル検証スイート。$1 が quoted なら eval "$(...)"、unquoted なら eval $(...) でスニペットを読み込む。
-# ble.sh のふりをする関数と _ble_complete_auto_source は、本物の ble.sh の状態を再現するためのハーネス。
+# ble.sh のふりをする関数は、本物の ble.sh の状態を再現するためのハーネス。
+# ble.sh は core-complete モジュールを .bashrc 実行後に遅延ロードし、ロード時に
+# _ble_complete_auto_source を無条件リセットしたうえで、後から atuin などの
+# onload 登録が先頭に挿入される。統合スニペットは ble/util/idle.push で
+# 「seasalt を除去して先頭に挿入する」タスクを登録し、全ての登録が完了した
+# idle 時点で再整列する(seasalt が必ず先頭になる)。
 run_suite() {
   local data_dir
   data_dir=$(mktemp -d)
   export SEASALT_DATA_DIR="$data_dir"
 
   BASHER_HOOKS=()
+  BASHER_IDLE_TASKS=()
   blehook() { BASHER_HOOKS+=("$*"); }
-  _ble_complete_auto_source=(history syntax)
+  ble/util/idle.push() { BASHER_IDLE_TASKS+=("$1"); }
+  # core-complete ロード前は _ble_complete_auto_source は未定義。フック登録状態もスイート毎にリセット
+  unset _ble_complete_auto_source _seasalt_hooked
 
   if [[ $1 == quoted ]]; then
     eval "$("$BIN" init bash)"
@@ -28,8 +36,25 @@ run_suite() {
   [[ ${#BASHER_HOOKS[@]} -eq 2 ]] || fail "hooks not registered: ${BASHER_HOOKS[*]}"
   eval "$("$BIN" init bash)"
   [[ ${#BASHER_HOOKS[@]} -eq 2 ]] || fail "hooks duplicated after re-eval: ${BASHER_HOOKS[*]}"
-  [[ " ${_ble_complete_auto_source[*]} " == *" seasalt "* ]] || fail "auto source missing: ${_ble_complete_auto_source[*]}"
-  [[ ${#_ble_complete_auto_source[@]} -eq 3 ]] || fail "auto source duplicated: ${_ble_complete_auto_source[*]}"
+  [[ ${#BASHER_IDLE_TASKS[@]} -eq 2 ]] || fail "idle tasks not queued: ${#BASHER_IDLE_TASKS[@]}"
+
+  # _ble_complete_auto_source が未定義のまま idle タスクが走っても安全に初期化される
+  eval "${BASHER_IDLE_TASKS[0]}"
+  [[ " ${_ble_complete_auto_source[*]} " == " seasalt history syntax " ]] || fail "unset array not initialized: ${_ble_complete_auto_source[*]}"
+
+  # core-complete ロード(無条件リセット)と atuin の onload 登録が完了した状態で idle タスクを実行
+  _ble_complete_auto_source=(atuin-history history syntax)
+  eval "${BASHER_IDLE_TASKS[1]}"
+  [[ ${_ble_complete_auto_source[0]} == seasalt ]] || fail "seasalt not first: ${_ble_complete_auto_source[*]}"
+  [[ ${#_ble_complete_auto_source[@]} -eq 4 ]] || fail "auto source count wrong: ${_ble_complete_auto_source[*]}"
+
+  # 起動後の再 eval(手動 eval 相当)で追加された idle タスクも冪等であること
+  eval "$("$BIN" init bash)"
+  [[ ${#BASHER_HOOKS[@]} -eq 2 ]] || fail "hooks duplicated on reload: ${BASHER_HOOKS[*]}"
+  [[ ${#BASHER_IDLE_TASKS[@]} -eq 3 ]] || fail "idle tasks not added on reload: ${#BASHER_IDLE_TASKS[@]}"
+  eval "${BASHER_IDLE_TASKS[2]}"
+  [[ " ${_ble_complete_auto_source[*]} " == " seasalt atuin-history history syntax " ]] || fail "idle task not idempotent: ${_ble_complete_auto_source[*]}"
+  [[ ${#_ble_complete_auto_source[@]} -eq 4 ]] || fail "auto source duplicated on reload: ${_ble_complete_auto_source[*]}"
 
   # preexec → record
   _seasalt_preexec "echo hello world"
