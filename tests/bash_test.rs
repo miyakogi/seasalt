@@ -32,6 +32,28 @@ fn init_bash_output_is_valid_bash_syntax() {
 }
 
 #[test]
+fn init_bash_survives_eval_command_substitution() {
+    let bin = env!("CARGO_BIN_EXE_seasalt");
+    let script = format!(
+        r#"set -euo pipefail
+SEASALT_BIN={bin}
+SEASALT_DATA_DIR=$(mktemp -d)
+blehook() {{ :; }}
+_ble_complete_auto_source=(history syntax)
+eval $("$SEASALT_BIN" init bash)
+declare -F _seasalt_preexec >/dev/null
+declare -F _seasalt_precmd >/dev/null
+"#
+    );
+    let out = Command::new("bash").args(["-c", &script]).output().unwrap();
+    assert!(
+        out.status.success(),
+        "eval に失敗: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
 fn init_bash_rejects_unknown_shell() {
     let out = Command::new(env!("CARGO_BIN_EXE_seasalt"))
         .args(["init", "zsh"])
