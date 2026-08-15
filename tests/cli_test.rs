@@ -31,7 +31,7 @@ fn record_then_exit_then_search() {
         .unwrap();
     bin()
         .env("SEASALT_DATA_DIR", &dir)
-        .args(["exit", "--session", "s1", "--last-id", "1", "--code", "0"])
+        .args(["exit", "--last-id", "1", "--code", "0"])
         .status()
         .unwrap();
 
@@ -46,6 +46,48 @@ fn record_then_exit_then_search() {
     let fields: Vec<&str> = text.trim().split('\t').collect();
     assert_eq!(fields[0..4], ["1", "/tmp/x", "echo hello", "0"]);
     assert!(!fields[4].is_empty());
+}
+
+#[test]
+fn record_dedups_identical_command() {
+    let dir = temp_data_dir();
+    let first = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args([
+            "record",
+            "--cwd",
+            "/x",
+            "--session",
+            "s1",
+            "--",
+            "echo hello",
+        ])
+        .output()
+        .unwrap();
+    let second = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args([
+            "record",
+            "--cwd",
+            "/x",
+            "--session",
+            "s2",
+            "--",
+            "echo hello",
+        ])
+        .output()
+        .unwrap();
+    let id1 = String::from_utf8(first.stdout).unwrap();
+    let id2 = String::from_utf8(second.stdout).unwrap();
+    assert_eq!(id1.trim(), id2.trim());
+
+    // 履歴には 1 行だけ残る
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--tsv", "hello"])
+        .output()
+        .unwrap();
+    assert_eq!(out.stdout.iter().filter(|&&b| b == b'\n').count(), 1);
 }
 
 #[test]

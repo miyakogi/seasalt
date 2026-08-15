@@ -17,7 +17,7 @@ if [[ "$_seasalt_bin" ]]; then
     local code;
     code=$?;
     if [[ "$_seasalt_last_id" ]]; then
-      "$_seasalt_bin" exit --session "$_seasalt_session" --last-id "$_seasalt_last_id" --code "$code" >/dev/null 2>&1;
+      "$_seasalt_bin" exit --last-id "$_seasalt_last_id" --code "$code" >/dev/null 2>&1;
       _seasalt_last_id=;
     fi;
   };

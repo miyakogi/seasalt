@@ -28,8 +28,6 @@ enum Command {
     /// Update the exit code of a recorded command (precmd hook)
     Exit {
         #[arg(long)]
-        session: String,
-        #[arg(long)]
         last_id: i64,
         #[arg(long)]
         code: i64,
@@ -80,11 +78,7 @@ fn run(cli: Cli) -> Result<()> {
             let id = seasalt::db::record_history(&conn, &cwd, &cmd, started_at, &session, &paths)?;
             println!("{id}");
         }
-        Command::Exit {
-            session: _,
-            last_id,
-            code,
-        } => {
+        Command::Exit { last_id, code } => {
             seasalt::db::update_exit_code(&conn, last_id, code)?;
         }
         Command::Suggest { cwd, line } => {

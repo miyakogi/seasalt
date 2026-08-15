@@ -67,6 +67,12 @@ run_suite() {
   out=$("$BIN" search --tsv hello)
   [[ $out == *"$PWD"*"echo hello world"*"0"* ]] || fail "history missing: $out"
 
+  # 同一コマンドの再実行は新規行を作らず既存行を最新化する (dedup)
+  _seasalt_preexec "echo hello world"
+  _seasalt_precmd
+  rows=$("$BIN" search --tsv echo | wc -l)
+  [[ $rows -eq 1 ]] || fail "duplicate history rows after re-run: $rows"
+
   # suggest 確認
   local sugg
   sugg=$("$BIN" suggest --cwd "$PWD" -- "echo")
