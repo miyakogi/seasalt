@@ -55,11 +55,14 @@ CREATE TABLE history (
   cmd TEXT NOT NULL,
   exit_code INTEGER,
   started_at INTEGER NOT NULL,
-  session TEXT
+  session TEXT,
+  paths TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX idx_history_cwd ON history(cwd);
 CREATE INDEX idx_history_cmd ON history(cmd);
 ```
+
+`paths` には record 時点で実在したファイル引数のパスを NUL 区切りで保存する(詳細は §6)。旧スキーマ(`paths` 列なし)の DB は初回接続時に `ALTER TABLE ... ADD COLUMN` で自動マイグレーションされる。
 
 ## 4. コンポーネント
 
@@ -67,6 +70,7 @@ CREATE INDEX idx_history_cmd ON history(cmd);
 
 - `seasalt record --cwd DIR -- CMD`
   - preexec フックから呼ばれ履歴を insert(実行前時点のエントリ作成)
+  - 引数のうち記録時点で実在したファイルパスのみを `paths` に保存する(存在しなかった引数は制約にならない)
   - 新しい行の rowid を stdout に出力し、bash 側の変数に保持
 - `seasalt exit --session SESSION --last-id N --code CODE`
   - precmd フックから呼ばれ、`(session, id)` で特定したエントリに exit_code を update
@@ -74,6 +78,7 @@ CREATE INDEX idx_history_cmd ON history(cmd);
   - フォルダスコープで prefix 一致の最良候補を stdout に出力
   - スコープ: cwd 完全一致 → 親ディレクトリ順(深さ優先で近い方から)→ グローバル
   - 各スコープ内は最新優先
+  - 保存済み `paths` が suggest 時点の cwd 基準で存在しなくなった候補はスキップし、次の候補へフォールバックする(全候補が消滅していれば何も出力しない)
   - 候補が無ければ何も出力しない
 - `seasalt search [--all] PATTERN`
   - フォルダ絞り検索 CLI(フェーズ 1)
@@ -88,7 +93,9 @@ CREATE INDEX idx_history_cmd ON history(cmd);
 1. `ble/complete/auto-complete/source:seasalt` 関数の定義
    - `_ble_edit_str` と `$PWD` を `seasalt suggest` に渡す
    - 結果があれば `ble/complete/auto-complete/enter h 0 "$suggest" '' "$cmd"` を呼ぶ
-2. `_ble_complete_auto_source` 配列への挿入(`seasalt history syntax` の順)
+2. `_ble_complete_auto_source` 配列の再整列(`seasalt syntax` の順)
+   - ble.sh は core-complete を遅延ロードし、その際に配列を `(history syntax)` へ無条件リセットする。統合スニペットは idle タスクで「seasalt を先頭に置き、`atuin-history` と `history` を除去する」再整列を実行する
+   - インライン提案は seasalt のみが担当し、削除済みファイルを参照するコマンドが他ソースから提案されるのを防ぐ(Ctrl-R の履歴検索には影響しない)
 3. `blehook PREEXEC+=seasalt_record` による履歴記録
 4. `blehook PRECMD+=seasalt_exit` による exit_code 更新
 
@@ -111,7 +118,14 @@ CREATE INDEX idx_history_cmd ON history(cmd);
 2. 親ディレクトリを近い順に検索
 3. グローバル全体から prefix 一致の最新
 
-候補が無い場合は補完なし。ble.sh の既存 `history` / `syntax` ソースがそのままフォールバックとして機能する。
+候補が無い場合は補完なし。インライン提案は seasalt のみが担当する(`history` / `atuin-history` ソースは統合スニペットが除外するため、フォールバックは存在しない)。
+
+### 削除済みファイルのフィルタリング(fish と同様のセマンティクス)
+
+- record 時に、引数のうち実在したファイルパスのみを `paths` に保存する
+- suggest 時に、保存されたパスが「suggest 時点の cwd」基準で存在しなければ、その候補をスキップして次の候補へフォールバックする
+- 記録時点で存在しなかった引数(`echo hello` の `hello`、`git push` の `push` など)は制約にならない
+- 相対パスは record 時の cwd ではなく suggest 時点の cwd 基準で判定し、絶対パスはそのまま判定する
 
 ## 7. エラー処理
 
