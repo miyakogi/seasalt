@@ -64,6 +64,30 @@ nix build .#default
 # result/bin/seasalt is the binary
 ```
 
+### With Nix flakes (home-manager)
+
+Add seasalt as a flake input and install the binary through
+`home.packages`:
+
+```nix
+# home-manager flake.nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    home-manager.url = "github:nix-community/home-manager";
+    seasalt.url = "github:miyakogi/seasalt";
+  };
+
+  # home-manager module
+  home.packages = [ inputs.seasalt.packages.${pkgs.system}.default ];
+}
+```
+
+Pin a release tag for stability: `seasalt.url =
+"github:miyakogi/seasalt/v0.1.0";`. After installing, add
+`eval "$(seasalt init bash)"` to `~/.bashrc` as usual (see
+[Setup](#setup)).
+
 ## Setup
 
 Add the following to `~/.bashrc`, **after** the line that sources

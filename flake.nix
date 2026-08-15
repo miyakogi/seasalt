@@ -17,6 +17,10 @@
           version = "0.1.0";
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
+          meta = {
+            description = "fish-style inline autosuggestion and per-directory history for bash";
+            mainProgram = "seasalt";
+          };
         };
       });
 }
