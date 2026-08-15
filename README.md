@@ -17,7 +17,8 @@ file.
 - **Per-directory history scoping** — suggestions prefer history from
   the current directory, then parent directories (nearest first), then
   fall back to global history. Within each scope, the latest matching
-  command wins (case-insensitive prefix match).
+  command wins, and commands matching the exact case are preferred
+  over case-insensitive matches (like fish).
 - **Stale-file filtering** — a command that referenced files which no
   longer exist in the current directory is skipped as a suggestion
   (the next candidate is tried instead). Only arguments that were

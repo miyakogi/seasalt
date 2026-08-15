@@ -84,6 +84,8 @@ CREATE INDEX idx_history_cwd_cmd ON history(cwd, cmd);
   - フォルダスコープで prefix 一致の最良候補を stdout に出力
   - スコープ: cwd 完全一致 → 親ディレクトリ順(深さ優先で近い方から)→ グローバル
   - 各スコープ内は最新優先
+  - 各スコープ内では、大文字小文字が完全一致する prefix 候補を優先し、無ければ case-insensitive の最新候補にフォールバックする (fish の autosuggestion と同じ。sensitive 検索は SQLite の GLOB を使う)
+  - 表示のケースについて: タイプ中の表示は入力テキストのケースのまま (例: `cd pic` + ゴースト `tures`) で、確定時のみ `cd Pictures` になる。fish は「最後のトークンに大文字が無ければ表示だけ候補のケースに合わせる」(combine_command_and_autosuggestion) が、ble.sh の auto-complete は実バッファ + ゴーストの合成描画のため表示だけの調整ができない。バッファ自体を候補のケースで書き換える案 (ble-edit/content/replace) は undo・カーソル操作への副作用があるため採用しない (表示の差異のみで確定結果は同じ)
   - 保存済み `paths` が suggest 時点の cwd 基準で存在しなくなった候補はスキップし、次の候補へフォールバックする(全候補が消滅していれば何も出力しない)
   - 候補が無ければ何も出力しない
 - `seasalt search [--all] PATTERN`

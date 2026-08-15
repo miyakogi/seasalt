@@ -294,3 +294,32 @@ fn delete_by_ids_ignores_nonexistent_ids() {
         .unwrap();
     assert_eq!(count, 0);
 }
+
+#[test]
+fn suggest_in_dir_is_case_sensitive_when_requested() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    db::record_history(&conn, "/x", "Cargo build", 2000, "s", "").unwrap();
+    db::record_history(&conn, "/x", "cargo check", 1000, "s", "").unwrap();
+
+    // 従来の検索 (case-insensitive) は両方にヒットする
+    let icase = db::suggest_in_dir(&conn, "/x", "cargo", 10, false).unwrap();
+    assert_eq!(icase.len(), 2);
+    // sensitive 検索は大文字小文字を区別する
+    let sensitive = db::suggest_in_dir(&conn, "/x", "cargo", 10, true).unwrap();
+    assert_eq!(sensitive.len(), 1);
+    assert_eq!(sensitive[0].0, "cargo check");
+    assert_eq!(sensitive[0].1, "");
+}
+
+#[test]
+fn suggest_global_is_case_sensitive_when_requested() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    db::record_history(&conn, "/a", "Cargo build", 2000, "s", "").unwrap();
+
+    let icase = db::suggest_global(&conn, "cargo", 10, false).unwrap();
+    assert_eq!(icase.len(), 1);
+    let sensitive = db::suggest_global(&conn, "cargo", 10, true).unwrap();
+    assert!(sensitive.is_empty());
+}

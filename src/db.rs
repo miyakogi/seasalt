@@ -154,22 +154,65 @@ pub fn delete_by_ids(conn: &Connection, ids: &[i64]) -> Result<()> {
     Ok(())
 }
 
-/// prefix 一致の候補を新しい順に最大 limit 件返す (cmd, paths)
+/// prefix 一致の候補を新しい順に最大 limit 件返す (cmd, paths)。
+/// sensitive なら大文字小文字を区別する (fish の autosuggestion は
+/// exact-case 一致を優先するため)。
 pub fn suggest_in_dir(
     conn: &Connection,
     cwd: &str,
     needle: &str,
     limit: usize,
+    sensitive: bool,
+) -> Result<Vec<(String, String)>> {
+    suggest_prefix(conn, Some(cwd), needle, limit, sensitive)
+}
+
+/// prefix 一致の候補を新しい順に最大 limit 件返す (cmd, paths)。
+/// sensitive なら大文字小文字を区別する。
+pub fn suggest_global(
+    conn: &Connection,
+    needle: &str,
+    limit: usize,
+    sensitive: bool,
+) -> Result<Vec<(String, String)>> {
+    suggest_prefix(conn, None, needle, limit, sensitive)
+}
+
+fn suggest_prefix(
+    conn: &Connection,
+    cwd: Option<&str>,
+    needle: &str,
+    limit: usize,
+    sensitive: bool,
 ) -> Result<Vec<(String, String)>> {
     if needle.is_empty() {
         return Ok(Vec::new());
     }
-    let pattern = format!("{}%", escape_like(needle));
-    let mut stmt = conn.prepare(
-        "SELECT cmd, paths FROM history WHERE cwd = ?1 AND cmd LIKE ?2 ESCAPE '\\'
-         ORDER BY started_at DESC, id DESC LIMIT ?3",
-    )?;
-    let rows = stmt.query_map(rusqlite::params![cwd, pattern, limit as i64], map_candidate)?;
+    // 大文字小文字を区別する場合は GLOB (case-sensitive) を使う。
+    // SQLite の LIKE は COLLATE BINARY を適用しても ASCII の
+    // case-insensitive のままのため。
+    let (like, pattern) = if sensitive {
+        ("GLOB", format!("{}*", escape_glob(needle)))
+    } else {
+        ("LIKE", format!("{}%", escape_like(needle)))
+    };
+    let sql = match cwd {
+        Some(_) => format!(
+            "SELECT cmd, paths FROM history WHERE cwd = ?1 AND cmd {like} ?2
+             ORDER BY started_at DESC, id DESC LIMIT ?3"
+        ),
+        None => format!(
+            "SELECT cmd, paths FROM history WHERE cmd {like} ?1
+             ORDER BY started_at DESC, id DESC LIMIT ?2"
+        ),
+    };
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = match cwd {
+        Some(dir) => {
+            stmt.query_map(rusqlite::params![dir, pattern, limit as i64], map_candidate)?
+        }
+        None => stmt.query_map(rusqlite::params![pattern, limit as i64], map_candidate)?,
+    };
     let mut out = Vec::new();
     for row in rows {
         out.push(row?);
@@ -177,26 +220,14 @@ pub fn suggest_in_dir(
     Ok(out)
 }
 
-/// prefix 一致の候補を新しい順に最大 limit 件返す (cmd, paths)
-pub fn suggest_global(
-    conn: &Connection,
-    needle: &str,
-    limit: usize,
-) -> Result<Vec<(String, String)>> {
-    if needle.is_empty() {
-        return Ok(Vec::new());
-    }
-    let pattern = format!("{}%", escape_like(needle));
-    let mut stmt = conn.prepare(
-        "SELECT cmd, paths FROM history WHERE cmd LIKE ?1 ESCAPE '\\'
-         ORDER BY started_at DESC, id DESC LIMIT ?2",
-    )?;
-    let rows = stmt.query_map(rusqlite::params![pattern, limit as i64], map_candidate)?;
-    let mut out = Vec::new();
-    for row in rows {
-        out.push(row?);
-    }
-    Ok(out)
+/// GLOB パターンの特殊文字 (* ? [ ] \) をエスケープする
+fn escape_glob(s: &str) -> String {
+    s.chars()
+        .flat_map(|c| match c {
+            '*' | '?' | '[' | ']' | '\\' => vec!['\\', c],
+            other => vec![other],
+        })
+        .collect()
 }
 
 fn map_candidate(r: &rusqlite::Row<'_>) -> rusqlite::Result<(String, String)> {

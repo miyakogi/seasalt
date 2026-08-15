@@ -244,3 +244,70 @@ fn parent_scope_checks_against_current_cwd() {
     );
     let _ = std::fs::remove_dir_all(&parent);
 }
+
+#[test]
+fn case_sensitive_match_is_preferred() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    // 新しい icase-only 候補より、古い exact-case 候補が優先される (fish と同じ)
+    db::record_history(&conn, "/proj/sub", "CARGO BUILD", 2000, "s", "").unwrap();
+    db::record_history(&conn, "/proj/sub", "cargo build", 1000, "s", "").unwrap();
+    let got = suggest::suggest(&conn, "/proj/sub", "cargo")
+        .unwrap()
+        .unwrap();
+    assert_eq!(got, "cargo build");
+}
+
+#[test]
+fn case_insensitive_fallback_without_sensitive_match() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    db::record_history(&conn, "/proj/sub", "CARGO BUILD", 2000, "s", "").unwrap();
+    let got = suggest::suggest(&conn, "/proj/sub", "cargo")
+        .unwrap()
+        .unwrap();
+    assert_eq!(got, "CARGO BUILD");
+}
+
+#[test]
+fn uppercase_needle_prefers_exact_case() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    db::record_history(&conn, "/proj/sub", "cargo build", 2000, "s", "").unwrap();
+    db::record_history(&conn, "/proj/sub", "Cargo check", 1000, "s", "").unwrap();
+    // 針に大文字が含まれても exact-case が優先される (fish と同じ)
+    let got = suggest::suggest(&conn, "/proj/sub", "Cargo")
+        .unwrap()
+        .unwrap();
+    assert_eq!(got, "Cargo check");
+}
+
+#[test]
+fn cwd_icase_beats_parent_exact_case() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    db::record_history(&conn, "/proj/sub", "CARGO BUILD", 2000, "s", "").unwrap();
+    db::record_history(&conn, "/proj", "cargo check", 1000, "s", "").unwrap();
+    // スコープ優先は case 優先より上位: cwd の icase 候補が勝つ
+    let got = suggest::suggest(&conn, "/proj/sub", "cargo")
+        .unwrap()
+        .unwrap();
+    assert_eq!(got, "CARGO BUILD");
+}
+
+#[test]
+fn stale_sensitive_candidate_falls_back_to_icase() {
+    let dir = temp_dir();
+    let cwd = dir.to_str().unwrap();
+    std::fs::write(dir.join("live.txt"), "x").unwrap();
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    // exact-case 候補は stale (gone.txt は存在しない)
+    db::record_history(&conn, cwd, "nvim gone.txt", 2000, "s", "gone.txt").unwrap();
+    // icase-only 候補は有効
+    db::record_history(&conn, cwd, "NVIM live.txt", 1000, "s", "live.txt").unwrap();
+
+    let got = suggest::suggest(&conn, cwd, "nvim").unwrap().unwrap();
+    assert_eq!(got, "NVIM live.txt");
+    let _ = std::fs::remove_dir_all(&dir);
+}
