@@ -10,6 +10,9 @@ Single Rust binary + a bash snippet compiled into it. SQLite (WAL) at
   `cargo fmt && cargo check && cargo clippy && cargo test`
 - Shell integration test — NOT run by `cargo test`, always run it too:
   `cargo build --release && bash tests/bash/smoke.sh target/release/seasalt`
+- Performance benchmarks — NOT run by `cargo test`: `cargo bench`
+  (benches/suggest.rs; suggests per-keystroke cost in-process and
+  end-to-end, incl. process spawn, across DB sizes 1k..1M rows)
 - Single test: `cargo test --test <db_test|cli_test|suggest_test|paths_test|bash_test> <name>`
 - Install: `cargo install --path .` (Nix: `nix build .#default`)
 - Dev shell (pinned Rust toolchain incl. rust-analyzer): `nix develop`

@@ -9,3 +9,10 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 dirs = "6"
 rusqlite = { version = "0.37", features = ["bundled"] }
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "suggest"
+harness = false
