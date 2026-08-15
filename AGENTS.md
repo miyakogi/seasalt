@@ -1,0 +1,48 @@
+# AGENTS.md
+
+seasalt: fish-style inline autosuggestion and per-directory history for bash.
+Single Rust binary + a bash snippet compiled into it. SQLite (WAL) at
+~/.local/share/seasalt/history.sqlite3 (SEASALT_DATA_DIR overrides).
+
+## Commands
+
+- Pre-commit gate, in this order:
+  `cargo fmt && cargo check && cargo clippy && cargo test`
+- Shell integration test — NOT run by `cargo test`, always run it too:
+  `cargo build --release && bash tests/bash/smoke.sh target/release/seasalt`
+- Single test: `cargo test --test <db_test|cli_test|suggest_test|paths_test|bash_test> <name>`
+- Install: `cargo install --path .` (Nix: `nix build .#default`)
+- The snippet lives at src/bash/seasalt.bash and is embedded via
+  include_str! (src/integration.rs): after editing it, rebuild before
+  smoke tests or installs — `cargo test` alone may not exercise it.
+
+## Architecture
+
+- Subcommands: record/exit (hook-facing, silent), suggest, search,
+  delete, init bash (init must not touch the DB or data dir — tested)
+- suggest scopes: exact cwd → parents (nearest first) → global;
+  10 candidates per scope; exact-case preferred, icase fallback (fish parity)
+- Same (cwd, cmd) dedups: record_history refreshes the existing row
+- paths column (args existing at record time) filters suggestions
+  referencing deleted files
+- Permissions: new data dir 0700 / new DB 0600 only; existing ones untouched
+- Design spec (authoritative, written in Japanese):
+  docs/superpowers/specs/2026-08-15-seasalt-design.md
+
+## Gotchas (hard-earned)
+
+- Keep suggest SYNCHRONOUS: async variants (bgproc / background
+  subshells) emit stray `[1] <pid>` job notifications under
+  bash 5.3 + ble.sh 0.4. Do not reintroduce backgrounding (spec §4).
+- Only `eval "$(seasalt init bash)"` (quoted) is supported. Unquoted
+  eval fails with a syntax error BY DESIGN (snippet comments) — do not
+  "fix" that.
+- The snippet uses GNU coreutils `timeout` (macOS needs coreutils).
+- SQLite `LIKE` ignores COLLATE BINARY: use GLOB for case-sensitive
+  prefix matching (db.rs suggest_prefix).
+- Silence contract: record/exit/suggest never write to stderr;
+  init/search/delete report errors to stderr.
+- Language conventions: comments in src/ and tests/ are English,
+  README English, design spec Japanese.
+- Features follow: brainstorming → spec → plan → subagent-driven
+  implementation (docs/superpowers/; subagent defs in .opencode/agent/).
