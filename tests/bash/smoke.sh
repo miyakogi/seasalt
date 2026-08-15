@@ -12,8 +12,8 @@ fail() { echo "FAIL: $1"; exit 1; }
 # ble.sh は core-complete モジュールを .bashrc 実行後に遅延ロードし、ロード時に
 # _ble_complete_auto_source を無条件リセットしたうえで、後から atuin などの
 # onload 登録が先頭に挿入される。統合スニペットは ble/util/idle.push で
-# 「seasalt を除去して先頭に挿入する」タスクを登録し、全ての登録が完了した
-# idle 時点で再整列する(seasalt が必ず先頭になる)。
+# 「seasalt を先頭に置き、atuin-history と bash history を除去する」タスクを
+# 登録し、全ての登録が完了した idle 時点で再整列する(seasalt が必ず先頭になる)。
 run_suite() {
   local data_dir
   data_dir=$(mktemp -d)
@@ -40,21 +40,20 @@ run_suite() {
 
   # _ble_complete_auto_source が未定義のまま idle タスクが走っても安全に初期化される
   eval "${BASHER_IDLE_TASKS[0]}"
-  [[ " ${_ble_complete_auto_source[*]} " == " seasalt history syntax " ]] || fail "unset array not initialized: ${_ble_complete_auto_source[*]}"
+  [[ " ${_ble_complete_auto_source[*]} " == " seasalt syntax " ]] || fail "unset array not initialized: ${_ble_complete_auto_source[*]}"
 
   # core-complete ロード(無条件リセット)と atuin の onload 登録が完了した状態で idle タスクを実行
   _ble_complete_auto_source=(atuin-history history syntax)
   eval "${BASHER_IDLE_TASKS[1]}"
-  [[ ${_ble_complete_auto_source[0]} == seasalt ]] || fail "seasalt not first: ${_ble_complete_auto_source[*]}"
-  [[ ${#_ble_complete_auto_source[@]} -eq 4 ]] || fail "auto source count wrong: ${_ble_complete_auto_source[*]}"
+  [[ " ${_ble_complete_auto_source[*]} " == " seasalt syntax " ]] || fail "auto source not reduced: ${_ble_complete_auto_source[*]}"
 
   # 起動後の再 eval(手動 eval 相当)で追加された idle タスクも冪等であること
   eval "$("$BIN" init bash)"
   [[ ${#BASHER_HOOKS[@]} -eq 2 ]] || fail "hooks duplicated on reload: ${BASHER_HOOKS[*]}"
   [[ ${#BASHER_IDLE_TASKS[@]} -eq 3 ]] || fail "idle tasks not added on reload: ${#BASHER_IDLE_TASKS[@]}"
   eval "${BASHER_IDLE_TASKS[2]}"
-  [[ " ${_ble_complete_auto_source[*]} " == " seasalt atuin-history history syntax " ]] || fail "idle task not idempotent: ${_ble_complete_auto_source[*]}"
-  [[ ${#_ble_complete_auto_source[@]} -eq 4 ]] || fail "auto source duplicated on reload: ${_ble_complete_auto_source[*]}"
+  [[ " ${_ble_complete_auto_source[*]} " == " seasalt syntax " ]] || fail "idle task not idempotent: ${_ble_complete_auto_source[*]}"
+  [[ ${#_ble_complete_auto_source[@]} -eq 2 ]] || fail "auto source duplicated on reload: ${_ble_complete_auto_source[*]}"
 
   # preexec → record
   _seasalt_preexec "echo hello world"
@@ -72,6 +71,19 @@ run_suite() {
   local sugg
   sugg=$("$BIN" suggest --cwd "$PWD" -- "echo")
   [[ $sugg == "echo hello world" ]] || fail "suggest mismatch: $sugg"
+
+  # 削除済みファイルを参照する候補は出ないこと
+  local fdir sugg2 sugg3
+  fdir=$(mktemp -d)
+  touch "$fdir/a.txt"
+  _seasalt_preexec "ls $fdir/a.txt"
+  _seasalt_precmd
+  sugg2=$("$BIN" suggest --cwd "$PWD" -- "ls")
+  [[ $sugg2 == "ls $fdir/a.txt" ]] || fail "suggest with existing file mismatch: $sugg2"
+  rm -f "$fdir/a.txt" # テスト用の一時ファイルなので削除してよい
+  sugg3=$("$BIN" suggest --cwd "$PWD" -- "ls")
+  [[ -z $sugg3 ]] || fail "suggest with deleted file should be empty: $sugg3"
+  rmdir "$fdir" 2>/dev/null || true
 
   # auto-complete ソースが定義されていること
   declare -F ble/complete/auto-complete/source:seasalt >/dev/null || fail "source fn missing"

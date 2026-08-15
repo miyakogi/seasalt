@@ -76,7 +76,8 @@ fn run(cli: Cli) -> Result<()> {
         Command::Record { cwd, session, cmd } => {
             let cmd = cmd.join(" ");
             let started_at = now_ms();
-            let id = seasalt::db::insert_history(&conn, &cwd, &cmd, started_at, &session)?;
+            let paths = seasalt::paths::required_paths(&cwd, &cmd).join("\0");
+            let id = seasalt::db::insert_history(&conn, &cwd, &cmd, started_at, &session, &paths)?;
             println!("{id}");
         }
         Command::Exit {

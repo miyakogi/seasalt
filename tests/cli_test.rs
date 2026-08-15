@@ -115,3 +115,110 @@ fn record_prints_row_id() {
         .unwrap();
     assert!(id > 0);
 }
+
+#[test]
+fn record_stores_existing_paths() {
+    let dir = temp_data_dir();
+    let name = std::thread::current().name().unwrap_or("t").to_string();
+    let files =
+        std::env::temp_dir().join(format!("seasalt-cli-files-{}-{}", std::process::id(), name));
+    let _ = std::fs::remove_dir_all(&files);
+    std::fs::create_dir_all(&files).unwrap();
+    std::fs::write(files.join("a.txt"), "x").unwrap();
+    let cwd = files.to_str().unwrap();
+
+    // 実在ファイル → paths に保存される
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args([
+            "record",
+            "--cwd",
+            cwd,
+            "--session",
+            "s1",
+            "--",
+            "nvim a.txt",
+        ])
+        .status()
+        .unwrap();
+    // 存在しないファイル → paths は空
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args([
+            "record",
+            "--cwd",
+            cwd,
+            "--session",
+            "s1",
+            "--",
+            "echo hello",
+        ])
+        .status()
+        .unwrap();
+
+    let conn = rusqlite::Connection::open(dir.join("history.sqlite3")).unwrap();
+    let paths: String = conn
+        .query_row(
+            "SELECT paths FROM history WHERE cmd = 'nvim a.txt'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(paths, "a.txt");
+    let paths: String = conn
+        .query_row(
+            "SELECT paths FROM history WHERE cmd = 'echo hello'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(paths, "");
+
+    let _ = std::fs::remove_dir_all(&files);
+}
+
+#[test]
+fn suggest_filters_deleted_files() {
+    let dir = temp_data_dir();
+    let name = std::thread::current().name().unwrap_or("t").to_string();
+    let files =
+        std::env::temp_dir().join(format!("seasalt-cli-files-{}-{}", std::process::id(), name));
+    let _ = std::fs::remove_dir_all(&files);
+    std::fs::create_dir_all(&files).unwrap();
+    std::fs::write(files.join("a.txt"), "x").unwrap();
+    let cwd = files.to_str().unwrap();
+
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args([
+            "record",
+            "--cwd",
+            cwd,
+            "--session",
+            "s1",
+            "--",
+            "nvim a.txt",
+        ])
+        .status()
+        .unwrap();
+
+    // 存在する間はサジェストされる
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["suggest", "--cwd", cwd, "--", "nvim"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8(out.stdout).unwrap().trim(), "nvim a.txt");
+
+    // 削除するとサジェストされない
+    std::fs::remove_file(files.join("a.txt")).unwrap();
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["suggest", "--cwd", cwd, "--", "nvim"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(out.stdout, b"");
+
+    let _ = std::fs::remove_dir_all(&files);
+}

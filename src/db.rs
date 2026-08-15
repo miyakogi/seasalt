@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS history (
   cmd TEXT NOT NULL,
   exit_code INTEGER,
   started_at INTEGER NOT NULL,
-  session TEXT
+  session TEXT,
+  paths TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_history_cwd ON history(cwd);
 CREATE INDEX IF NOT EXISTS idx_history_cmd ON history(cmd);
@@ -49,7 +50,23 @@ pub fn open(path: &Path) -> Result<Connection> {
 
 pub fn init(conn: &Connection) -> Result<()> {
     conn.execute_batch(SCHEMA)?;
+    // 旧スキーマ (paths 列なし) からのマイグレーション
+    if !has_column(conn, "paths")? {
+        conn.execute_batch("ALTER TABLE history ADD COLUMN paths TEXT NOT NULL DEFAULT ''")?;
+    }
     Ok(())
+}
+
+fn has_column(conn: &Connection, name: &str) -> Result<bool> {
+    let mut stmt = conn.prepare("PRAGMA table_info(history)")?;
+    let mut rows = stmt.query([])?;
+    while let Some(row) = rows.next()? {
+        let col: String = row.get(1)?;
+        if col == name {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 pub fn insert_history(
@@ -58,10 +75,11 @@ pub fn insert_history(
     cmd: &str,
     started_at: i64,
     session: &str,
+    paths: &str,
 ) -> Result<i64> {
     conn.execute(
-        "INSERT INTO history (cwd, cmd, started_at, session) VALUES (?1, ?2, ?3, ?4)",
-        rusqlite::params![cwd, cmd, started_at, session],
+        "INSERT INTO history (cwd, cmd, started_at, session, paths) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![cwd, cmd, started_at, session, paths],
     )?;
     Ok(conn.last_insert_rowid())
 }
@@ -74,36 +92,53 @@ pub fn update_exit_code(conn: &Connection, session: &str, id: i64, code: i64) ->
     Ok(())
 }
 
-pub fn suggest_in_dir(conn: &Connection, cwd: &str, needle: &str) -> Result<Option<String>> {
+/// prefix 一致の候補を新しい順に最大 limit 件返す (cmd, paths)
+pub fn suggest_in_dir(
+    conn: &Connection,
+    cwd: &str,
+    needle: &str,
+    limit: usize,
+) -> Result<Vec<(String, String)>> {
     if needle.is_empty() {
-        return Ok(None);
+        return Ok(Vec::new());
     }
     let pattern = format!("{}%", escape_like(needle));
     let mut stmt = conn.prepare(
-        "SELECT cmd FROM history WHERE cwd = ?1 AND cmd LIKE ?2 ESCAPE '\\'
-         ORDER BY started_at DESC, id DESC LIMIT 1",
+        "SELECT cmd, paths FROM history WHERE cwd = ?1 AND cmd LIKE ?2 ESCAPE '\\'
+         ORDER BY started_at DESC, id DESC LIMIT ?3",
     )?;
-    let mut rows = stmt.query(rusqlite::params![cwd, pattern])?;
-    if let Some(row) = rows.next()? {
-        return Ok(Some(row.get(0)?));
+    let rows = stmt.query_map(rusqlite::params![cwd, pattern, limit as i64], map_candidate)?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
     }
-    Ok(None)
+    Ok(out)
 }
 
-pub fn suggest_global(conn: &Connection, needle: &str) -> Result<Option<String>> {
+/// prefix 一致の候補を新しい順に最大 limit 件返す (cmd, paths)
+pub fn suggest_global(
+    conn: &Connection,
+    needle: &str,
+    limit: usize,
+) -> Result<Vec<(String, String)>> {
     if needle.is_empty() {
-        return Ok(None);
+        return Ok(Vec::new());
     }
     let pattern = format!("{}%", escape_like(needle));
     let mut stmt = conn.prepare(
-        "SELECT cmd FROM history WHERE cmd LIKE ?1 ESCAPE '\\'
-         ORDER BY started_at DESC, id DESC LIMIT 1",
+        "SELECT cmd, paths FROM history WHERE cmd LIKE ?1 ESCAPE '\\'
+         ORDER BY started_at DESC, id DESC LIMIT ?2",
     )?;
-    let mut rows = stmt.query(rusqlite::params![pattern])?;
-    if let Some(row) = rows.next()? {
-        return Ok(Some(row.get(0)?));
+    let rows = stmt.query_map(rusqlite::params![pattern, limit as i64], map_candidate)?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
     }
-    Ok(None)
+    Ok(out)
+}
+
+fn map_candidate(r: &rusqlite::Row<'_>) -> rusqlite::Result<(String, String)> {
+    Ok((r.get(0)?, r.get(1)?))
 }
 
 fn escape_like(s: &str) -> String {

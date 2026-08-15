@@ -6,7 +6,7 @@ fn insert_and_update_exit_code_roundtrip() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
 
-    let id = db::insert_history(&conn, "/tmp/a", "echo hello", 1000, "s1").unwrap();
+    let id = db::insert_history(&conn, "/tmp/a", "echo hello", 1000, "s1", "").unwrap();
     db::update_exit_code(&conn, "s1", id, 42).unwrap();
 
     let mut stmt = conn
@@ -46,8 +46,8 @@ fn init_is_idempotent() {
 fn insert_returns_increasing_ids() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    let a = db::insert_history(&conn, "/x", "a", 1, "s").unwrap();
-    let b = db::insert_history(&conn, "/x", "b", 2, "s").unwrap();
+    let a = db::insert_history(&conn, "/x", "a", 1, "s", "").unwrap();
+    let b = db::insert_history(&conn, "/x", "b", 2, "s", "").unwrap();
     assert!(b > a);
 }
 
@@ -66,4 +66,63 @@ fn update_exit_code_on_missing_row_is_ok() {
     db::init(&conn).unwrap();
     // 存在しない (session, id) への update はエラーにしない
     db::update_exit_code(&conn, "nope", 999, 0).unwrap();
+}
+
+#[test]
+fn insert_and_read_paths_roundtrip() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+
+    let id = db::insert_history(
+        &conn,
+        "/tmp/a",
+        "nvim a.txt b.txt",
+        1000,
+        "s1",
+        "a.txt\0b.txt",
+    )
+    .unwrap();
+    let got: String = conn
+        .query_row("SELECT paths FROM history WHERE id = ?1", [id], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(got, "a.txt\0b.txt");
+}
+
+#[test]
+fn init_adds_paths_column_to_old_schema() {
+    let conn = Connection::open_in_memory().unwrap();
+    // paths 列が無い旧スキーマ
+    conn.execute_batch(
+        "CREATE TABLE history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          cwd TEXT NOT NULL,
+          cmd TEXT NOT NULL,
+          exit_code INTEGER,
+          started_at INTEGER NOT NULL,
+          session TEXT
+        );",
+    )
+    .unwrap();
+
+    db::init(&conn).unwrap();
+
+    let cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(history)")
+        .unwrap()
+        .query_map([], |r| r.get(1))
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+    assert!(cols.contains(&"paths".to_string()));
+
+    // マイグレーション後も挿入できる
+    let id = db::insert_history(&conn, "/tmp/a", "echo hello", 1000, "s1", "x.txt").unwrap();
+    let got: String = conn
+        .query_row("SELECT paths FROM history WHERE id = ?1", [id], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(got, "x.txt");
 }

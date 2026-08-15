@@ -2,6 +2,10 @@ use anyhow::Result;
 use rusqlite::Connection;
 
 use crate::db;
+use crate::paths;
+
+/// 各スコープで調査する候補の最大件数
+const CANDIDATE_LIMIT: usize = 10;
 
 /// 親ディレクトリを近い順に列挙(ルート自体は含まない)
 pub fn ancestors(cwd: &str) -> Vec<String> {
@@ -23,7 +27,10 @@ pub fn suggest(conn: &Connection, cwd: &str, line: &str) -> Result<Option<String
         return Ok(None);
     }
     // スコープ 1: cwd 完全一致
-    if let Some(cmd) = db::suggest_in_dir(conn, cwd, line)? {
+    for (cmd, paths) in db::suggest_in_dir(conn, cwd, line, CANDIDATE_LIMIT)? {
+        if !paths::valid(cwd, &paths) {
+            continue;
+        }
         if cmd != line {
             return Ok(Some(cmd));
         }
@@ -31,7 +38,10 @@ pub fn suggest(conn: &Connection, cwd: &str, line: &str) -> Result<Option<String
     }
     // スコープ 2: 親ディレクトリ(近い順)
     for anc in ancestors(cwd) {
-        if let Some(cmd) = db::suggest_in_dir(conn, &anc, line)? {
+        for (cmd, paths) in db::suggest_in_dir(conn, &anc, line, CANDIDATE_LIMIT)? {
+            if !paths::valid(cwd, &paths) {
+                continue;
+            }
             if cmd != line {
                 return Ok(Some(cmd));
             }
@@ -39,10 +49,14 @@ pub fn suggest(conn: &Connection, cwd: &str, line: &str) -> Result<Option<String
         }
     }
     // スコープ 3: グローバル
-    if let Some(cmd) = db::suggest_global(conn, line)? {
+    for (cmd, paths) in db::suggest_global(conn, line, CANDIDATE_LIMIT)? {
+        if !paths::valid(cwd, &paths) {
+            continue;
+        }
         if cmd != line {
             return Ok(Some(cmd));
         }
+        return Ok(None);
     }
     Ok(None)
 }

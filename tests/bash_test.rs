@@ -72,18 +72,18 @@ eval $("$SEASALT_BIN" init bash)
 [[ ${{#BASHER_IDLE_TASKS[@]}} -eq 1 ]]
 # _ble_complete_auto_source が未定義のまま idle タスクが走っても安全に初期化される
 fire_idle_task "${{BASHER_IDLE_TASKS[0]}}"
-[[ " ${{_ble_complete_auto_source[*]}} " == " seasalt history syntax " ]]
+[[ " ${{_ble_complete_auto_source[*]}} " == " seasalt syntax " ]]
 # core-complete ロード(無条件リセット)と atuin の onload 登録が完了した状態で
-# idle タスクを実行すると seasalt が先頭に来る
+# idle タスクを実行すると seasalt が先頭になり、他ソースは除去される
 _ble_complete_auto_source=(atuin-history history syntax)
 fire_idle_task "${{BASHER_IDLE_TASKS[0]}}"
-[[ " ${{_ble_complete_auto_source[*]}} " == " seasalt atuin-history history syntax " ]]
+[[ " ${{_ble_complete_auto_source[*]}} " == " seasalt syntax " ]]
 # 起動後の再 eval でも重複せず冪等であること
 eval $("$SEASALT_BIN" init bash)
 [[ ${{#BASHER_HOOKS[@]}} -eq 2 ]]
 [[ ${{#BASHER_IDLE_TASKS[@]}} -eq 2 ]]
 fire_idle_task "${{BASHER_IDLE_TASKS[1]}}"
-[[ " ${{_ble_complete_auto_source[*]}} " == " seasalt atuin-history history syntax " ]]
+[[ " ${{_ble_complete_auto_source[*]}} " == " seasalt syntax " ]]
 "#
     );
     let out = Command::new("bash").args(["-c", &script]).output().unwrap();

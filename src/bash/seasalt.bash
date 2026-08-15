@@ -32,7 +32,10 @@ if [[ "$_seasalt_bin" ]]; then
       [[ ${_ble_complete_auto_source+_} ]] || _ble_complete_auto_source=(history syntax);
       local _seasalt_source _seasalt_sources=();
       for _seasalt_source in "${_ble_complete_auto_source[@]}"; do
-        [[ $_seasalt_source == seasalt ]] || _seasalt_sources+=("$_seasalt_source");
+        case "$_seasalt_source" in
+          seasalt|atuin-history|history) ;;
+          *) _seasalt_sources+=("$_seasalt_source") ;;
+        esac;
       done;
       _ble_complete_auto_source=(seasalt "${_seasalt_sources[@]}");';
 

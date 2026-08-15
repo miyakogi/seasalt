@@ -133,8 +133,11 @@ concurrent access by multiple shells.
 - **atuin** — history search (`Ctrl-R`), sync, stats.
 - **seasalt** — inline autosuggestions and per-directory scoping.
 
-For inline suggestions, seasalt takes priority over atuin's suggestion
-source; when it has no match, atuin's is consulted as a fallback.
+For inline suggestions, seasalt is the only source: the integration
+snippet removes the `atuin-history` and bash `history` auto-complete
+sources from `_ble_complete_auto_source` on the first idle, so a command
+referencing a deleted file is never suggested by anyone. atuin's own
+history search (`Ctrl-R`) is unaffected.
 Existing atuin history can be imported later if desired; nothing is
 duplicated automatically.
 
