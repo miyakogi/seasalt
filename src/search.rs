@@ -3,6 +3,21 @@ use rusqlite::Connection;
 
 use crate::db::HistoryEntry;
 
+/// The directory to scope a cwd-less search to: the logical $PWD when
+/// the shell exported it (matching what `record` stores), else the
+/// physical current directory. None when neither is available (global
+/// search).
+pub fn default_cwd() -> Option<String> {
+    std::env::var("PWD")
+        .ok()
+        .filter(|p| !p.is_empty() && p.starts_with('/'))
+        .or_else(|| {
+            std::env::current_dir()
+                .ok()
+                .map(|p| p.to_string_lossy().into_owned())
+        })
+}
+
 pub fn search(
     conn: &Connection,
     cwd: Option<&str>,

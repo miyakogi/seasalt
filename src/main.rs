@@ -39,9 +39,13 @@ enum Command {
         #[arg(trailing_var_arg = true, required = true, allow_hyphen_values = true)]
         line: Vec<String>,
     },
-    /// Search history
+    /// Search history (scoped to the current directory by default)
     Search {
-        #[arg(long, conflicts_with = "all")]
+        #[arg(
+            long,
+            conflicts_with = "all",
+            help = "directory to search (default: the current directory)"
+        )]
         cwd: Option<String>,
         #[arg(long)]
         all: bool,
@@ -115,8 +119,15 @@ fn run(cli: Cli) -> Result<()> {
             pattern,
         } => {
             let conn = open_db()?;
-            let cwd_filter = if all { None } else { cwd.as_deref() };
-            let entries = seasalt::search::search(&conn, cwd_filter, &pattern, limit)?;
+            let cwd_filter = if all {
+                None
+            } else {
+                match cwd {
+                    Some(dir) => Some(dir),
+                    None => seasalt::search::default_cwd(),
+                }
+            };
+            let entries = seasalt::search::search(&conn, cwd_filter.as_deref(), &pattern, limit)?;
             for e in entries {
                 if tsv {
                     let code = e.exit_code.map(|c| c.to_string()).unwrap_or_default();
