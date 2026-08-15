@@ -1,6 +1,10 @@
 use rusqlite::Connection;
 use seasalt::db;
 
+/// Serializes tests that mutate process-global env vars
+/// (std::env::set_var is process-wide; parallel tests would race).
+static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[test]
 fn insert_and_update_exit_code_roundtrip() {
     let conn = Connection::open_in_memory().unwrap();
@@ -53,6 +57,7 @@ fn insert_returns_increasing_ids() {
 
 #[test]
 fn default_db_path_respects_env_override() {
+    let _guard = ENV_LOCK.lock().unwrap();
     let dir = std::env::temp_dir().join(format!("seasalt-test-{}", std::process::id()));
     std::env::set_var("SEASALT_DATA_DIR", &dir);
     let path = db::default_db_path().unwrap();
@@ -200,6 +205,7 @@ fn deduped_record_resets_exit_code_until_exit() {
 #[cfg(unix)]
 #[test]
 fn new_data_dir_and_db_get_restricted_permissions() {
+    let _guard = ENV_LOCK.lock().unwrap();
     use std::os::unix::fs::PermissionsExt;
 
     let base = std::env::temp_dir().join(format!(
@@ -230,6 +236,7 @@ fn new_data_dir_and_db_get_restricted_permissions() {
 #[cfg(unix)]
 #[test]
 fn existing_data_dir_and_db_permissions_are_left_unchanged() {
+    let _guard = ENV_LOCK.lock().unwrap();
     use std::os::unix::fs::PermissionsExt;
 
     let base = std::env::temp_dir().join(format!(
