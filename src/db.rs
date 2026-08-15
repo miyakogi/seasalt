@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use rusqlite::{Connection, OptionalExtension};
@@ -58,6 +59,9 @@ pub fn open(path: &Path) -> Result<Connection> {
         }
         conn.pragma_update(None, "journal_mode", "WAL")?;
     }
+    // Wait briefly for other shells' writers instead of failing
+    // immediately with SQLITE_BUSY (WAL readers are unaffected).
+    conn.busy_timeout(Duration::from_millis(300))?;
     init(&conn)?;
     Ok(conn)
 }

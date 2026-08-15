@@ -323,3 +323,32 @@ fn suggest_global_is_case_sensitive_when_requested() {
     let sensitive = db::suggest_global(&conn, "cargo", 10, true).unwrap();
     assert!(sensitive.is_empty());
 }
+
+#[test]
+fn writers_wait_for_busy_database() {
+    let dir = std::env::temp_dir().join(format!(
+        "seasalt-busy-{}-{}",
+        std::process::id(),
+        std::thread::current().name().unwrap_or("t")
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("history.sqlite3");
+
+    let conn = db::open(&path).unwrap();
+    let blocker = db::open(&path).unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    let handle = std::thread::spawn(move || {
+        blocker.execute_batch("BEGIN IMMEDIATE").unwrap();
+        tx.send(()).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        blocker.execute_batch("COMMIT").unwrap();
+    });
+    rx.recv().unwrap();
+    // Starts while the other connection holds the write lock; without
+    // busy_timeout this fails immediately with SQLITE_BUSY.
+    let id = db::record_history(&conn, "/x", "echo hi", 1000, "s", "").unwrap();
+    handle.join().unwrap();
+    assert!(id > 0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
