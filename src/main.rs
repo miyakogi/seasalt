@@ -73,10 +73,9 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli) -> Result<()> {
-    let path = seasalt::db::default_db_path()?;
-    let conn = seasalt::db::open(&path)?;
     match cli.command {
         Command::Record { cwd, session, cmd } => {
+            let conn = open_db()?;
             let cmd = cmd.join(" ");
             // 先頭が空白 (スペース/タブ) のコマンドは記録しない。
             // シェル履歴の HISTCONTROL=ignorespace と同じセマンティクスで、
@@ -91,9 +90,11 @@ fn run(cli: Cli) -> Result<()> {
             println!("{id}");
         }
         Command::Exit { last_id, code } => {
+            let conn = open_db()?;
             seasalt::db::update_exit_code(&conn, last_id, code)?;
         }
         Command::Suggest { cwd, line } => {
+            let conn = open_db()?;
             let line = line.join(" ");
             if let Some(cmd) = seasalt::suggest::suggest(&conn, &cwd, &line)? {
                 println!("{cmd}");
@@ -106,6 +107,7 @@ fn run(cli: Cli) -> Result<()> {
             tsv,
             pattern,
         } => {
+            let conn = open_db()?;
             let cwd_filter = if all { None } else { cwd.as_deref() };
             let entries = seasalt::search::search(&conn, cwd_filter, &pattern, limit)?;
             for e in entries {
@@ -118,6 +120,7 @@ fn run(cli: Cli) -> Result<()> {
             }
         }
         Command::Delete { ids } => {
+            let conn = open_db()?;
             seasalt::db::delete_by_ids(&conn, &ids)?;
         }
         Command::Init { shell } => match shell.as_str() {
@@ -126,6 +129,11 @@ fn run(cli: Cli) -> Result<()> {
         },
     }
     Ok(())
+}
+
+fn open_db() -> Result<rusqlite::Connection> {
+    let path = seasalt::db::default_db_path()?;
+    seasalt::db::open(&path)
 }
 
 fn now_ms() -> i64 {

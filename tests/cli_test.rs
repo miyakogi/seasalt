@@ -321,6 +321,7 @@ fn delete_removes_history_entries() {
 #[test]
 fn record_ignores_leading_whitespace_commands() {
     let dir = temp_data_dir();
+
     // スペース / タブ始まりのコマンドは記録されない (exit 0・出力なし)
     for cmd in ["  ls -la", "\tgit status"] {
         let out = bin()
@@ -350,4 +351,27 @@ fn record_ignores_leading_whitespace_commands() {
         .output()
         .unwrap();
     assert_eq!(String::from_utf8(out.stdout).unwrap().trim(), "1\tls -la");
+}
+
+#[test]
+fn init_does_not_create_data_dir() {
+    let dir = std::env::temp_dir().join(format!(
+        "seasalt-cli-init-{}-{}",
+        std::process::id(),
+        std::thread::current().name().unwrap_or("t")
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+
+    let out = bin()
+        .env_remove("SEASALT_DATA_DIR")
+        .env("XDG_DATA_HOME", &dir)
+        .args(["init", "bash"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert!(!out.stdout.is_empty());
+    // init は DB を作成しない (スニペット出力のみ)
+    assert!(!dir.exists());
+
+    let _ = std::fs::remove_dir_all(&dir);
 }
