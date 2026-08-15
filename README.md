@@ -18,6 +18,11 @@ file.
   the current directory, then parent directories (nearest first), then
   fall back to global history. Within each scope, the latest matching
   command wins (case-insensitive prefix match).
+- **Stale-file filtering** — a command that referenced files which no
+  longer exist in the current directory is skipped as a suggestion
+  (the next candidate is tried instead). Only arguments that were
+  existing files when the command was recorded constrain matching, so
+  `echo hello` or `git push` are unaffected.
 - **Exit-code tracking** — every recorded command stores its exit code,
   so suggestions can be refined by success in the future.
 - **Search CLI** — `seasalt search` queries history across all
@@ -60,7 +65,9 @@ eval "$(seasalt init bash)"
 ```
 
 That is all — the snippet registers the preexec/precmd hooks for
-recording and the auto-complete source for suggestions. It is safe to
+recording and the auto-complete source for suggestions, replacing the
+bash history and atuin inline-suggestion sources (details in
+[Coexistence with atuin](#coexistence-with-atuin)). It is safe to
 re-eval the snippet (for example when you update the binary); hooks are
 not duplicated.
 
