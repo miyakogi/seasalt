@@ -59,8 +59,8 @@ pub fn open(path: &Path) -> Result<Connection> {
         }
         conn.pragma_update(None, "journal_mode", "WAL")?;
     }
-    // Wait briefly for other shells' writers instead of failing
-    // immediately with SQLITE_BUSY (WAL readers are unaffected).
+    // Bound the wait for other shells' writers to 300ms; rusqlite's default
+    // (5000ms) could stall a shell hook behind a stuck writer for seconds.
     conn.busy_timeout(Duration::from_millis(300))?;
     init(&conn)?;
     Ok(conn)

@@ -345,10 +345,32 @@ fn writers_wait_for_busy_database() {
         blocker.execute_batch("COMMIT").unwrap();
     });
     rx.recv().unwrap();
-    // Starts while the other connection holds the write lock; without
-    // busy_timeout this fails immediately with SQLITE_BUSY.
+    // Starts while the other connection holds the write lock; the bounded busy
+    // timeout must wait for the lock instead of failing with SQLITE_BUSY.
     let id = db::record_history(&conn, "/x", "echo hi", 1000, "s", "").unwrap();
     handle.join().unwrap();
     assert!(id > 0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn open_sets_bounded_busy_timeout() {
+    let dir = std::env::temp_dir().join(format!(
+        "seasalt-busy-timeout-{}-{}",
+        std::process::id(),
+        std::thread::current().name().unwrap_or("t")
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("history.sqlite3");
+
+    let conn = db::open(&path).unwrap();
+    let timeout: i64 = conn
+        .query_row("SELECT * FROM pragma_busy_timeout", [], |row| row.get(0))
+        .unwrap();
+    // rusqlite 0.37 installs a 5000ms default at open; db::open must bound it
+    // explicitly so a stuck writer cannot stall a shell hook for seconds.
+    assert_eq!(timeout, 300);
+
     let _ = std::fs::remove_dir_all(&dir);
 }
