@@ -153,6 +153,10 @@ The database lives at:
 The file is created automatically on first use. WAL mode is enabled for
 concurrent access by multiple shells.
 
+Set `SEASALT_PRIVATE_MODE` to a non-empty value to stop recording
+commands (like fish's `$fish_private_mode`); existing history and
+suggestions are unaffected. Unset it to resume recording.
+
 ## Coexistence with atuin
 
 `seasalt` keeps an independent store and does not interfere with atuin:

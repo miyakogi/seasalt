@@ -101,6 +101,18 @@ run_suite() {
   out=$("$BIN" search --all secret)
   [[ -z $out ]] || fail "leading-space command in history: $out"
 
+  # SEASALT_PRIVATE_MODE 設定中は記録されない (fish の $fish_private_mode 相当)
+  export SEASALT_PRIVATE_MODE=1
+  _seasalt_preexec "echo private-mode-cmd"
+  [[ -z $_seasalt_last_id ]] || fail "private-mode command recorded: $_seasalt_last_id"
+  out=$("$BIN" search --all private-mode-cmd)
+  [[ -z $out ]] || fail "private-mode command in history: $out"
+  # 解除後は通常どおり記録される
+  unset SEASALT_PRIVATE_MODE
+  _seasalt_preexec "echo normal-after-private"
+  [[ $_seasalt_last_id =~ ^[0-9]+$ ]] || fail "record after unset failed: $_seasalt_last_id"
+  _seasalt_precmd
+
   # auto-complete ソースが定義されていること
   declare -F ble/complete/auto-complete/source:seasalt >/dev/null || fail "source fn missing"
 }
