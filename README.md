@@ -108,7 +108,8 @@ seasalt search [--cwd DIR] [--all] [--limit N] [--tsv] PATTERN
     Search history. Default prints one "id<TAB>cmd" line per entry;
     --tsv prints id, cwd, cmd, exit_code, started_at separated by
     tabs. By default search is scoped to the current directory; use
-    --all for everything.
+    --all for everything. PATTERN is matched as a substring (SQL LIKE
+    semantics), so % and _ act as wildcards.
 
 seasalt delete ID...
     Delete history entries by id. Multiple ids can be specified at

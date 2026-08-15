@@ -89,6 +89,7 @@ CREATE INDEX idx_history_cwd_cmd ON history(cwd, cmd);
 - `seasalt search [--all] PATTERN`
   - フォルダ絞り検索 CLI(フェーズ 1)
   - デフォルト出力は `id<TAB>cmd`、`--tsv` は id, cwd, cmd, exit_code, started_at(行削除のために id を常に表示する)
+  - パターンは SQL LIKE の部分一致で、`%` と `_` はワイルドカード
 - `seasalt delete ID...`
   - 指定した行 id の履歴を削除する。存在しない id は静かに無視し、成功時は何も出力しない
   - 誤ってパスワードなどを記録してしまった行の削除に使う
