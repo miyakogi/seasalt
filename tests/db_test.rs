@@ -197,6 +197,71 @@ fn deduped_record_resets_exit_code_until_exit() {
     assert_eq!(code, Some(7));
 }
 
+#[cfg(unix)]
+#[test]
+fn new_data_dir_and_db_get_restricted_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let base = std::env::temp_dir().join(format!(
+        "seasalt-perms-{}-{}",
+        std::process::id(),
+        std::thread::current().name().unwrap_or("t")
+    ));
+    let _ = std::fs::remove_dir_all(&base);
+    std::env::set_var("SEASALT_DATA_DIR", &base);
+
+    let path = db::default_db_path().unwrap();
+    assert_eq!(
+        std::fs::metadata(&base).unwrap().permissions().mode() & 0o777,
+        0o700
+    );
+    assert!(!path.exists());
+
+    db::open(&path).unwrap();
+    assert_eq!(
+        std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+
+    std::env::remove_var("SEASALT_DATA_DIR");
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[cfg(unix)]
+#[test]
+fn existing_data_dir_and_db_permissions_are_left_unchanged() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let base = std::env::temp_dir().join(format!(
+        "seasalt-perms-existing-{}-{}",
+        std::process::id(),
+        std::thread::current().name().unwrap_or("t")
+    ));
+    let _ = std::fs::remove_dir_all(&base);
+    // 既存環境の再現: 0755 ディレクトリ + 0644 DB
+    std::fs::create_dir_all(&base).unwrap();
+    std::fs::set_permissions(&base, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let path = base.join("history.sqlite3");
+    std::fs::write(&path, "").unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+    std::env::set_var("SEASALT_DATA_DIR", &base);
+
+    let got = db::default_db_path().unwrap();
+    assert_eq!(got, path);
+    db::open(&got).unwrap();
+    assert_eq!(
+        std::fs::metadata(&base).unwrap().permissions().mode() & 0o777,
+        0o755
+    );
+    assert_eq!(
+        std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+        0o644
+    );
+
+    std::env::remove_var("SEASALT_DATA_DIR");
+    let _ = std::fs::remove_dir_all(&base);
+}
+
 #[test]
 fn delete_by_ids_removes_only_requested_rows() {
     let conn = Connection::open_in_memory().unwrap();

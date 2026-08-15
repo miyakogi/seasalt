@@ -35,18 +35,44 @@ pub fn default_db_path() -> Result<PathBuf> {
     } else {
         anyhow::bail!("cannot determine data directory; set SEASALT_DATA_DIR");
     };
+    let existed = base.exists();
     std::fs::create_dir_all(&base)
         .with_context(|| format!("cannot create data directory {}", base.display()))?;
+    // 新規作成時のみ 0700 にする (既存のディレクトリは変更しない)。
+    // ディレクトリを 0700 にすることで WAL ファイル (-wal/-shm) も保護される。
+    if !existed {
+        restrict_dir(&base)?;
+    }
     Ok(base.join("history.sqlite3"))
 }
 
 pub fn open(path: &Path) -> Result<Connection> {
+    let is_memory = path == Path::new(":memory:");
+    let existed = is_memory || path.exists();
     let conn = Connection::open(path).with_context(|| format!("cannot open {}", path.display()))?;
-    if path != Path::new(":memory:") {
+    if !is_memory {
+        // 新規作成時のみ 0600 にする (既存のファイルは変更しない)
+        if !existed {
+            restrict_file(path)?;
+        }
         conn.pragma_update(None, "journal_mode", "WAL")?;
     }
     init(&conn)?;
     Ok(conn)
+}
+
+#[cfg(unix)]
+fn restrict_dir(path: &Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
+        .with_context(|| format!("cannot set permissions on {}", path.display()))
+}
+
+#[cfg(unix)]
+fn restrict_file(path: &Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+        .with_context(|| format!("cannot set permissions on {}", path.display()))
 }
 
 pub fn init(conn: &Connection) -> Result<()> {
