@@ -152,7 +152,7 @@ CREATE INDEX idx_history_cwd_cmd ON history(cwd, cmd);
 ## 7. エラー処理
 
 - seasalt バイナリ不在・DB が開けない → 補完を静かに無効化(ble.sh の補完を壊さない)
-- DB 破損 → 退避(リネーム)して新規作成
+- DB 破損 → 自動リカバリは行わない(退避リネームや新規作成の実装予定なし)。DB が開けない場合はエラー終了し、フック側(record/exit/suggest)では静かに無効化される
 - suggest タイムアウト → 補完なしで継続
 
 ## 8. テスト
