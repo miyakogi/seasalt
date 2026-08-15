@@ -22,5 +22,15 @@
             mainProgram = "seasalt";
           };
         };
+
+        devShells.default = pkgs.mkShell {
+          packages = [
+            pkgs.cargo
+            pkgs.rustc
+            pkgs.rustfmt
+            pkgs.clippy
+            pkgs.rust-analyzer
+          ];
+        };
       });
 }

@@ -162,6 +162,22 @@ With history like this (`/tmp` being an unrelated directory):
 running `cargo` in `/proj/sub` suggests `cargo build`; in
 `/proj` or `/proj/deep`, `cargo check`; anywhere else, `cargo doc`.
 
+## Development
+
+Enter the development shell (pinned Rust toolchain: cargo, rustc,
+rustfmt, clippy, rust-analyzer):
+
+```sh
+nix develop
+```
+
+With [direnv](https://direnv.net), the repo ships a `.envrc` that
+enters the same shell automatically:
+
+```sh
+direnv allow
+```
+
 ## Configuration
 
 The database lives at:
