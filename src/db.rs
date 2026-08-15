@@ -118,6 +118,16 @@ pub fn update_exit_code(conn: &Connection, id: i64, code: i64) -> Result<()> {
     Ok(())
 }
 
+/// 指定した id の履歴行を削除する。存在しない id は静かに無視する
+/// (誤ってパスワードなどを記録してしまった行の削除に使う)。
+pub fn delete_by_ids(conn: &Connection, ids: &[i64]) -> Result<()> {
+    let mut stmt = conn.prepare("DELETE FROM history WHERE id = ?1")?;
+    for id in ids {
+        stmt.execute(rusqlite::params![id])?;
+    }
+    Ok(())
+}
+
 /// prefix 一致の候補を新しい順に最大 limit 件返す (cmd, paths)
 pub fn suggest_in_dir(
     conn: &Connection,

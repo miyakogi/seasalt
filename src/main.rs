@@ -51,6 +51,11 @@ enum Command {
         tsv: bool,
         pattern: String,
     },
+    /// Delete history entries by id (e.g. a command that accidentally recorded a secret)
+    Delete {
+        #[arg(required = true)]
+        ids: Vec<i64>,
+    },
     /// Emit shell integration code (bash)
     Init { shell: String },
 }
@@ -101,9 +106,12 @@ fn run(cli: Cli) -> Result<()> {
                     let code = e.exit_code.map(|c| c.to_string()).unwrap_or_default();
                     println!("{}\t{}\t{}\t{}\t{}", e.id, e.cwd, e.cmd, code, e.started_at);
                 } else {
-                    println!("{}", e.cmd);
+                    println!("{}\t{}", e.id, e.cmd);
                 }
             }
+        }
+        Command::Delete { ids } => {
+            seasalt::db::delete_by_ids(&conn, &ids)?;
         }
         Command::Init { shell } => match shell.as_str() {
             "bash" => print!("{}", seasalt::integration::bash_init_script()),

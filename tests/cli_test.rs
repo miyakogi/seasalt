@@ -106,7 +106,8 @@ fn search_filters_by_cwd() {
         .output()
         .unwrap();
     let text = String::from_utf8(out.stdout).unwrap();
-    assert_eq!(text.trim(), "one");
+    // デフォルト出力は id<TAB>cmd
+    assert_eq!(text.trim(), "1\tone");
 }
 
 #[test]
@@ -263,4 +264,56 @@ fn suggest_filters_deleted_files() {
     assert_eq!(out.stdout, b"");
 
     let _ = std::fs::remove_dir_all(&files);
+}
+
+#[test]
+fn delete_removes_history_entries() {
+    let dir = temp_data_dir();
+    for cmd in ["one", "two", "three"] {
+        bin()
+            .env("SEASALT_DATA_DIR", &dir)
+            .args(["record", "--cwd", "/a", "--session", "s1", "--", cmd])
+            .status()
+            .unwrap();
+    }
+
+    // 複数 id を一括削除。成功時は何も出力しない
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["delete", "1", "3"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(out.stdout, b"");
+
+    // 削除したコマンドは search にも suggest にも出ない
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "one"])
+        .output()
+        .unwrap();
+    assert_eq!(out.stdout, b"");
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["suggest", "--cwd", "/a", "--", "one"])
+        .output()
+        .unwrap();
+    assert_eq!(out.stdout, b"");
+
+    // 残った行はデフォルト出力 id<TAB>cmd で確認できる
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "two"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8(out.stdout).unwrap().trim(), "2\ttwo");
+
+    // 存在しない id を指定しても静かに成功する
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["delete", "999"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(out.stdout, b"");
 }

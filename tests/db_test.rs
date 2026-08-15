@@ -196,3 +196,36 @@ fn deduped_record_resets_exit_code_until_exit() {
         .unwrap();
     assert_eq!(code, Some(7));
 }
+
+#[test]
+fn delete_by_ids_removes_only_requested_rows() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    let id1 = db::record_history(&conn, "/a", "one", 1000, "s", "").unwrap();
+    let id2 = db::record_history(&conn, "/a", "two", 2000, "s", "").unwrap();
+    let id3 = db::record_history(&conn, "/a", "three", 3000, "s", "").unwrap();
+
+    db::delete_by_ids(&conn, &[id1, id3]).unwrap();
+
+    let count: i64 = conn
+        .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+    let rest: i64 = conn
+        .query_row("SELECT id FROM history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(rest, id2);
+}
+
+#[test]
+fn delete_by_ids_ignores_nonexistent_ids() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    let id = db::record_history(&conn, "/a", "one", 1000, "s", "").unwrap();
+    // 存在しない id もエラーにしない
+    db::delete_by_ids(&conn, &[id, 999]).unwrap();
+    let count: i64 = conn
+        .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 0);
+}

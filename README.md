@@ -30,7 +30,11 @@ file.
 - **Exit-code tracking** — every recorded command stores its exit code,
   so suggestions can be refined by success in the future.
 - **Search CLI** — `seasalt search` queries history across all
-  directories or scoped to one.
+  directories or scoped to one. Every result line starts with its row
+  id, so an entry can be removed with `seasalt delete`.
+- **History deletion** — `seasalt delete ID...` removes entries by id,
+  e.g. after accidentally recording a password. Nonexistent ids are
+  silently ignored.
 
 ## Requirements
 
@@ -101,9 +105,15 @@ seasalt suggest --cwd DIR -- LINE...
     Print the best history match for the given line, or nothing.
 
 seasalt search [--cwd DIR] [--all] [--limit N] [--tsv] PATTERN
-    Search history. Default prints one command per line; --tsv prints
-    id, cwd, cmd, exit_code, started_at separated by tabs. By default
-    search is scoped to the current directory; use --all for everything.
+    Search history. Default prints one "id<TAB>cmd" line per entry;
+    --tsv prints id, cwd, cmd, exit_code, started_at separated by
+    tabs. By default search is scoped to the current directory; use
+    --all for everything.
+
+seasalt delete ID...
+    Delete history entries by id (e.g. a command that accidentally
+    recorded a secret). Silently ignores ids that do not exist and
+    prints nothing on success.
 
 seasalt init bash
     Print the bash integration snippet.
