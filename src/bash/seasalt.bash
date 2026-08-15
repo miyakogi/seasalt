@@ -27,7 +27,10 @@ if command -v "${SEASALT_BIN:-seasalt}" >/dev/null 2>&1 || [[ -n ${SEASALT_BIN:-
     blehook PRECMD+=_seasalt_precmd
 
     if (( ${#_ble_complete_auto_source[@]} )); then
-      [[ :${_ble_complete_auto_source[*]}: == *:seasalt:* ]] || _ble_complete_auto_source=(seasalt "${_ble_complete_auto_source[@]}")
+      case " ${_ble_complete_auto_source[*]} " in
+        (*" seasalt "*) ;;
+        (*) _ble_complete_auto_source=(seasalt "${_ble_complete_auto_source[@]}") ;;
+      esac
     else
       _ble_complete_auto_source=(seasalt history syntax)
     fi
