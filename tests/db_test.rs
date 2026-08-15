@@ -1,6 +1,10 @@
 use rusqlite::Connection;
 use seasalt::db;
 
+/// Serializes tests that mutate process-global env vars
+/// (std::env::set_var is process-wide; parallel tests would race).
+static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[test]
 fn insert_and_update_exit_code_roundtrip() {
     let conn = Connection::open_in_memory().unwrap();
@@ -53,6 +57,7 @@ fn insert_returns_increasing_ids() {
 
 #[test]
 fn default_db_path_respects_env_override() {
+    let _guard = ENV_LOCK.lock().unwrap();
     let dir = std::env::temp_dir().join(format!("seasalt-test-{}", std::process::id()));
     std::env::set_var("SEASALT_DATA_DIR", &dir);
     let path = db::default_db_path().unwrap();
@@ -200,6 +205,7 @@ fn deduped_record_resets_exit_code_until_exit() {
 #[cfg(unix)]
 #[test]
 fn new_data_dir_and_db_get_restricted_permissions() {
+    let _guard = ENV_LOCK.lock().unwrap();
     use std::os::unix::fs::PermissionsExt;
 
     let base = std::env::temp_dir().join(format!(
@@ -230,6 +236,7 @@ fn new_data_dir_and_db_get_restricted_permissions() {
 #[cfg(unix)]
 #[test]
 fn existing_data_dir_and_db_permissions_are_left_unchanged() {
+    let _guard = ENV_LOCK.lock().unwrap();
     use std::os::unix::fs::PermissionsExt;
 
     let base = std::env::temp_dir().join(format!(
@@ -296,30 +303,52 @@ fn delete_by_ids_ignores_nonexistent_ids() {
 }
 
 #[test]
-fn suggest_in_dir_is_case_sensitive_when_requested() {
-    let conn = Connection::open_in_memory().unwrap();
-    db::init(&conn).unwrap();
-    db::record_history(&conn, "/x", "Cargo build", 2000, "s", "").unwrap();
-    db::record_history(&conn, "/x", "cargo check", 1000, "s", "").unwrap();
+fn writers_wait_for_busy_database() {
+    let dir = std::env::temp_dir().join(format!(
+        "seasalt-busy-{}-{}",
+        std::process::id(),
+        std::thread::current().name().unwrap_or("t")
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("history.sqlite3");
 
-    // The legacy search (case-insensitive) matches both rows
-    let icase = db::suggest_in_dir(&conn, "/x", "cargo", 10, false).unwrap();
-    assert_eq!(icase.len(), 2);
-    // The sensitive search distinguishes case
-    let sensitive = db::suggest_in_dir(&conn, "/x", "cargo", 10, true).unwrap();
-    assert_eq!(sensitive.len(), 1);
-    assert_eq!(sensitive[0].0, "cargo check");
-    assert_eq!(sensitive[0].1, "");
+    let conn = db::open(&path).unwrap();
+    let blocker = db::open(&path).unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    let handle = std::thread::spawn(move || {
+        blocker.execute_batch("BEGIN IMMEDIATE").unwrap();
+        tx.send(()).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        blocker.execute_batch("COMMIT").unwrap();
+    });
+    rx.recv().unwrap();
+    // Starts while the other connection holds the write lock; the bounded busy
+    // timeout must wait for the lock instead of failing with SQLITE_BUSY.
+    let id = db::record_history(&conn, "/x", "echo hi", 1000, "s", "").unwrap();
+    handle.join().unwrap();
+    assert!(id > 0);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
-fn suggest_global_is_case_sensitive_when_requested() {
-    let conn = Connection::open_in_memory().unwrap();
-    db::init(&conn).unwrap();
-    db::record_history(&conn, "/a", "Cargo build", 2000, "s", "").unwrap();
+fn open_sets_bounded_busy_timeout() {
+    let dir = std::env::temp_dir().join(format!(
+        "seasalt-busy-timeout-{}-{}",
+        std::process::id(),
+        std::thread::current().name().unwrap_or("t")
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("history.sqlite3");
 
-    let icase = db::suggest_global(&conn, "cargo", 10, false).unwrap();
-    assert_eq!(icase.len(), 1);
-    let sensitive = db::suggest_global(&conn, "cargo", 10, true).unwrap();
-    assert!(sensitive.is_empty());
+    let conn = db::open(&path).unwrap();
+    let timeout: i64 = conn
+        .query_row("SELECT * FROM pragma_busy_timeout", [], |row| row.get(0))
+        .unwrap();
+    // rusqlite 0.37 installs a 5000ms default at open; db::open must bound it
+    // explicitly so a stuck writer cannot stall a shell hook for seconds.
+    assert_eq!(timeout, 300);
+
+    let _ = std::fs::remove_dir_all(&dir);
 }

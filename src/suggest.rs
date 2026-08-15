@@ -51,19 +51,13 @@ fn pick(cwd: &str, line: &str, candidates: Vec<(String, String)>) -> Outcome {
 /// Searches one scope. Exact-case matches are preferred, falling back
 /// to the latest case-insensitive match (like fish).
 fn search_scope(conn: &Connection, cwd: &str, line: &str, dir: Option<&str>) -> Result<Outcome> {
-    let sensitive = match dir {
-        Some(dir) => db::suggest_in_dir(conn, dir, line, CANDIDATE_LIMIT, true)?,
-        None => db::suggest_global(conn, line, CANDIDATE_LIMIT, true)?,
-    };
-    match pick(cwd, line, sensitive) {
+    let candidates = db::suggest_prefix(conn, dir, line, CANDIDATE_LIMIT, true)?;
+    match pick(cwd, line, candidates) {
         Outcome::NoMatch => {}
         other => return Ok(other),
     }
-    let icase = match dir {
-        Some(dir) => db::suggest_in_dir(conn, dir, line, CANDIDATE_LIMIT, false)?,
-        None => db::suggest_global(conn, line, CANDIDATE_LIMIT, false)?,
-    };
-    Ok(pick(cwd, line, icase))
+    let candidates = db::suggest_prefix(conn, dir, line, CANDIDATE_LIMIT, false)?;
+    Ok(pick(cwd, line, candidates))
 }
 
 pub fn suggest(conn: &Connection, cwd: &str, line: &str) -> Result<Option<String>> {

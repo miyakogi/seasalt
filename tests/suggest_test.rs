@@ -311,3 +311,30 @@ fn stale_sensitive_candidate_falls_back_to_icase() {
     assert_eq!(got, "NVIM live.txt");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn exact_case_preferred_when_line_contains_glob_chars() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    db::record_history(&conn, "/x", "LS *.txt", 2000, "s", "").unwrap();
+    db::record_history(&conn, "/x", "ls *.txt", 1000, "s", "").unwrap();
+    // Like fish, the exact-case match wins even though it is older;
+    // the broken GLOB escape made the sensitive pass miss and the
+    // newer icase candidate "LS *.txt" win instead.
+    let got = suggest::suggest(&conn, "/x", "ls *").unwrap().unwrap();
+    assert_eq!(got, "ls *.txt");
+}
+
+#[test]
+fn global_scope_prefers_exact_case() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    db::record_history(&conn, "/a", "Cargo build", 2000, "s", "").unwrap();
+    db::record_history(&conn, "/a", "cargo check", 1000, "s", "").unwrap();
+    // /nowhere has no cwd/parent match; the global scope prefers
+    // the exact-case candidate even though it is older.
+    let got = suggest::suggest(&conn, "/nowhere", "cargo")
+        .unwrap()
+        .unwrap();
+    assert_eq!(got, "cargo check");
+}

@@ -37,7 +37,7 @@ fn record_then_exit_then_search() {
 
     let out = bin()
         .env("SEASALT_DATA_DIR", &dir)
-        .args(["search", "--tsv", "hello"])
+        .args(["search", "--all", "--tsv", "hello"])
         .output()
         .unwrap();
     assert!(out.status.success());
@@ -84,7 +84,7 @@ fn record_dedups_identical_command() {
     // Only one row remains in history
     let out = bin()
         .env("SEASALT_DATA_DIR", &dir)
-        .args(["search", "--tsv", "hello"])
+        .args(["search", "--all", "--tsv", "hello"])
         .output()
         .unwrap();
     assert_eq!(out.stdout.iter().filter(|&&b| b == b'\n').count(), 1);
@@ -387,4 +387,53 @@ fn record_failure_is_silent() {
         .unwrap();
     assert!(!out.status.success());
     assert_eq!(out.stderr, b"");
+}
+
+#[test]
+fn search_defaults_to_current_directory() {
+    let dir = temp_data_dir();
+    let here = seasalt::search::default_cwd().unwrap();
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args([
+            "record",
+            "--cwd",
+            here.as_str(),
+            "--session",
+            "s1",
+            "--",
+            "unique-cmd-xyz",
+        ])
+        .status()
+        .unwrap();
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args([
+            "record",
+            "--cwd",
+            "/elsewhere",
+            "--session",
+            "s1",
+            "--",
+            "unique-cmd-other",
+        ])
+        .status()
+        .unwrap();
+    // Without --cwd the search is scoped to the process cwd
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "unique-cmd"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap().trim(),
+        "1\tunique-cmd-xyz"
+    );
+    // --all finds both
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "unique-cmd"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8(out.stdout).unwrap().lines().count(), 2);
 }

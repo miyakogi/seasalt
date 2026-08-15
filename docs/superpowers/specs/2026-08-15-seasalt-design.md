@@ -122,7 +122,7 @@ CREATE INDEX idx_history_cwd_cmd ON history(cwd, cmd);
 
 1. `.bashrc` に `eval "$(seasalt init bash)"` を追記
 2. タイピング → ble.sh idle 処理 → `source:seasalt` → `seasalt suggest` → 灰色テキスト表示 → → キーで確定
-3. コマンド実行 → `blehook PREEXEC` → `seasalt record`(WAL insert)→ 返った `(session, id)` を変数保持
+3. コマンド実行 → `blehook PREEXEC` → `seasalt record`(WAL insert)→ 返った行 id を変数保持
 4. プロンプト再表示 → `blehook PRECMD` → `seasalt exit` で exit_code update
 
 ## 6. サジェストのスコープ仕様(fish 風)
