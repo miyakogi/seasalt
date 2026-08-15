@@ -222,11 +222,16 @@ fn suggest_prefix(
     Ok(out)
 }
 
-/// Escapes the GLOB special characters (* ? [ ] \)
+/// Escapes the GLOB special characters (* ? [) using character
+/// classes: SQLite's GLOB has no escape character, so [*], [?] and
+/// [[] match those characters literally. \ and ] are literal outside
+/// a class and need no escaping.
 fn escape_glob(s: &str) -> String {
     s.chars()
         .flat_map(|c| match c {
-            '*' | '?' | '[' | ']' | '\\' => vec!['\\', c],
+            '*' => vec!['[', '*', ']'],
+            '?' => vec!['[', '?', ']'],
+            '[' => vec!['[', '[', ']'],
             other => vec![other],
         })
         .collect()
