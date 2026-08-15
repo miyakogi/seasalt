@@ -13,7 +13,7 @@ file.
 
 - **Inline autosuggestions** — while typing, the most likely completion
   of the current line is shown in gray via ble.sh's auto-complete
-  mechanism. Press `→` (or `Ctrl-F`) to accept it.
+  mechanism.
 - **Per-directory history scoping** — suggestions prefer history from
   the current directory, then parent directories (nearest first), then
   fall back to global history. Within each scope, the latest matching
@@ -25,30 +25,26 @@ file.
   `echo hello` or `git push` are unaffected.
 - **Duplicate suppression** — re-running the same command in the
   same directory refreshes its existing entry (moving it to the top)
-  instead of adding another copy, like fish. Duplicate rows created
-  by older versions are left as-is.
+  instead of adding another copy, like fish.
 - **Space-prefix suppression** — commands that start with a space or
   tab are never recorded, like bash's `HISTCONTROL=ignorespace`. Run
   ` password-command` when you do not want the command (or its
   arguments, e.g. a secret) to appear in history or suggestions.
-- **Exit-code tracking** — every recorded command stores its exit code,
-  so suggestions can be refined by success in the future.
-- **Search CLI** — `seasalt search` queries history across all
-  directories or scoped to one. Every result line starts with its row
-  id, so an entry can be removed with `seasalt delete`.
-- **History deletion** — `seasalt delete ID...` removes entries by id,
-  e.g. after accidentally recording a password. Nonexistent ids are
-  silently ignored.
+- **Exit-code tracking** — every recorded command stores its exit code.
+- **Search and delete CLI** — `seasalt search` queries history across
+  all directories or scoped to one, and `seasalt delete ID...` removes
+  entries by id (e.g. a password recorded by accident).
 
 ## Requirements
 
-- bash 4+ with [ble.sh](https://github.com/ainamota/ble.sh) (0.4.0
+- bash 4+ with [ble.sh](https://github.com/akinomyoga/ble.sh) (0.4.0
   development builds are fine) — required for autosuggestions.
 - A Rust toolchain to build from source (or Nix).
 
 ble.sh must be sourced in `.bashrc` **before** the seasalt integration
-snippet. Recording hooks also work with bash-preexec as an alternative
-to ble.sh, but suggestions require ble.sh.
+snippet. Recording hooks also work with
+[bash-preexec](https://github.com/rcaloras/bash-preexec) as an
+alternative to ble.sh, but suggestions require ble.sh.
 
 ## Installation
 
@@ -79,15 +75,14 @@ eval "$(seasalt init bash)"
 That is all — the snippet registers the preexec/precmd hooks for
 recording and the auto-complete source for suggestions, replacing the
 bash history and atuin inline-suggestion sources (details in
-[Coexistence with atuin](#coexistence-with-atuin)). It is safe to
-re-eval the snippet (for example when you update the binary); hooks are
-not duplicated.
+[Coexistence with atuin](#coexistence-with-atuin)).
 
-If `seasalt` is not on `PATH` (e.g. it lives in a Nix store path), point
-the snippet at the full path:
+If `seasalt` is not on `PATH` (e.g. it lives in a Nix store path), set
+`SEASALT_BIN` to the full path and use it to generate the snippet:
 
 ```sh
 export SEASALT_BIN=/path/to/seasalt
+eval "$("$SEASALT_BIN" init bash)"
 ```
 
 ## Usage
@@ -116,9 +111,9 @@ seasalt search [--cwd DIR] [--all] [--limit N] [--tsv] PATTERN
     --all for everything.
 
 seasalt delete ID...
-    Delete history entries by id (e.g. a command that accidentally
-    recorded a secret). Silently ignores ids that do not exist and
-    prints nothing on success.
+    Delete history entries by id. Multiple ids can be specified at
+    once, separated by spaces. Silently ignores ids that do not exist
+    and prints nothing on success.
 
 seasalt init bash
     Print the bash integration snippet.
@@ -130,16 +125,16 @@ hooks.
 
 ### Suggestion scoping example
 
-With history like this:
+With history like this (`/tmp` being an unrelated directory):
 
 ```
 /proj/sub   cargo build
 /proj       cargo check
-/global     cargo doc
+/tmp        cargo doc
 ```
 
 running `cargo` in `/proj/sub` suggests `cargo build`; in
-`/proj/deep`, `cargo check`; anywhere else, `cargo doc`.
+`/proj` or `/proj/deep`, `cargo check`; anywhere else, `cargo doc`.
 
 ## Configuration
 
@@ -166,16 +161,17 @@ suggestions are unaffected. Unset it to resume recording.
 
 For inline suggestions, seasalt is the only source: the integration
 snippet removes the `atuin-history` and bash `history` auto-complete
-sources from `_ble_complete_auto_source` on the first idle, so a command
-referencing a deleted file is never suggested by anyone. atuin's own
-history search (`Ctrl-R`) is unaffected.
-Existing atuin history can be imported later if desired; nothing is
-duplicated automatically.
+sources from `_ble_complete_auto_source` on the first idle, so inline
+suggestions come only from seasalt. atuin's own history search
+(`Ctrl-R`) is unaffected.
+atuin keeps its own history store and seasalt does not read or copy
+from it: commands recorded by atuin do not appear in seasalt's
+suggestions, and vice versa.
 
 ## Known limitations
 
 - Autosuggestions require ble.sh; without it only recording works (via
   bash-preexec) and a warning is printed on eval.
-- There is no interactive search UI (`Ctrl-R` replacement) yet; search
-  is CLI-only.
+- There is no interactive search UI yet; search is CLI-only (atuin
+  covers `Ctrl-R` history search instead).
 - No history sync across machines or users.
