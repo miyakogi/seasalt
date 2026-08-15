@@ -161,31 +161,10 @@ pub fn delete_by_ids(conn: &Connection, ids: &[i64]) -> Result<()> {
 }
 
 /// Returns the prefix-matching candidates in descending order of
-/// recency, up to limit (cmd, paths). When sensitive, matching is
+/// recency, up to limit (cmd, paths). When cwd is Some, candidates are
+/// restricted to that directory. When sensitive, matching is
 /// case-sensitive (fish's autosuggestion prefers exact-case matches).
-pub fn suggest_in_dir(
-    conn: &Connection,
-    cwd: &str,
-    needle: &str,
-    limit: usize,
-    sensitive: bool,
-) -> Result<Vec<(String, String)>> {
-    suggest_prefix(conn, Some(cwd), needle, limit, sensitive)
-}
-
-/// Returns the prefix-matching candidates in descending order of
-/// recency, up to limit (cmd, paths). When sensitive, matching is
-/// case-sensitive.
-pub fn suggest_global(
-    conn: &Connection,
-    needle: &str,
-    limit: usize,
-    sensitive: bool,
-) -> Result<Vec<(String, String)>> {
-    suggest_prefix(conn, None, needle, limit, sensitive)
-}
-
-fn suggest_prefix(
+pub(crate) fn suggest_prefix(
     conn: &Connection,
     cwd: Option<&str>,
     needle: &str,

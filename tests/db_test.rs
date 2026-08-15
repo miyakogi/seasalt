@@ -303,35 +303,6 @@ fn delete_by_ids_ignores_nonexistent_ids() {
 }
 
 #[test]
-fn suggest_in_dir_is_case_sensitive_when_requested() {
-    let conn = Connection::open_in_memory().unwrap();
-    db::init(&conn).unwrap();
-    db::record_history(&conn, "/x", "Cargo build", 2000, "s", "").unwrap();
-    db::record_history(&conn, "/x", "cargo check", 1000, "s", "").unwrap();
-
-    // The legacy search (case-insensitive) matches both rows
-    let icase = db::suggest_in_dir(&conn, "/x", "cargo", 10, false).unwrap();
-    assert_eq!(icase.len(), 2);
-    // The sensitive search distinguishes case
-    let sensitive = db::suggest_in_dir(&conn, "/x", "cargo", 10, true).unwrap();
-    assert_eq!(sensitive.len(), 1);
-    assert_eq!(sensitive[0].0, "cargo check");
-    assert_eq!(sensitive[0].1, "");
-}
-
-#[test]
-fn suggest_global_is_case_sensitive_when_requested() {
-    let conn = Connection::open_in_memory().unwrap();
-    db::init(&conn).unwrap();
-    db::record_history(&conn, "/a", "Cargo build", 2000, "s", "").unwrap();
-
-    let icase = db::suggest_global(&conn, "cargo", 10, false).unwrap();
-    assert_eq!(icase.len(), 1);
-    let sensitive = db::suggest_global(&conn, "cargo", 10, true).unwrap();
-    assert!(sensitive.is_empty());
-}
-
-#[test]
 fn writers_wait_for_busy_database() {
     let dir = std::env::temp_dir().join(format!(
         "seasalt-busy-{}-{}",
