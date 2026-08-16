@@ -352,3 +352,109 @@ fn open_sets_bounded_busy_timeout() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn trim_history_keeps_newest_rows() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    for i in 0..12 {
+        db::record_history(&conn, "/x", &format!("cmd {i}"), 1000 + i as i64, "s", "").unwrap();
+    }
+    db::trim_history(&conn, 10).unwrap();
+    let count: i64 = conn
+        .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 10);
+    let cmds: Vec<String> = conn
+        .prepare("SELECT cmd FROM history ORDER BY started_at")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+    assert_eq!(
+        cmds,
+        (2..12).map(|i| format!("cmd {i}")).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn trim_history_at_limit_deletes_nothing() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    for i in 0..10 {
+        db::record_history(&conn, "/x", &format!("cmd {i}"), 1000 + i as i64, "s", "").unwrap();
+    }
+    db::trim_history(&conn, 10).unwrap();
+    let count: i64 = conn
+        .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 10);
+}
+
+#[test]
+fn trim_history_under_limit_deletes_nothing() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    for i in 0..5 {
+        db::record_history(&conn, "/x", &format!("cmd {i}"), 1000 + i as i64, "s", "").unwrap();
+    }
+    db::trim_history(&conn, 10).unwrap();
+    let count: i64 = conn
+        .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 5);
+}
+
+#[test]
+fn trim_history_protects_refreshed_rows() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    // "make" is the oldest row, then refreshed by a re-run (dedup)
+    db::record_history(&conn, "/x", "make", 1000, "s", "").unwrap();
+    for i in 1..12 {
+        db::record_history(&conn, "/x", &format!("cmd {i}"), 1000 + i as i64, "s", "").unwrap();
+    }
+    db::record_history(&conn, "/x", "make", 9999, "s", "").unwrap();
+    db::trim_history(&conn, 10).unwrap();
+    let count: i64 = conn
+        .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 10);
+    let has_make: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM history WHERE cmd = 'make')",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(has_make);
+}
+
+#[test]
+fn clear_removes_all_rows() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    for i in 0..5 {
+        db::record_history(&conn, "/x", &format!("cmd {i}"), 1000 + i as i64, "s", "").unwrap();
+    }
+    db::clear(&conn).unwrap();
+    let count: i64 = conn
+        .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 0);
+}
+
+#[test]
+fn init_creates_started_at_index() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    let name: String = conn
+        .query_row(
+            "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_history_started_at'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(name, "idx_history_started_at");
+}

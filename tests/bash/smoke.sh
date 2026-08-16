@@ -121,6 +121,13 @@ run_suite() {
   [[ ${#BASHER_ENTER[@]} -gt 0 ]] || fail "suggestion not entered"
   [[ ${BASHER_ENTER[0]} == "h| normal-after-private" ]] || fail "suggest mismatch: ${BASHER_ENTER[0]}"
   unset _ble_edit_str _ble_edit_ind
+
+  # clear removes everything
+  _seasalt_preexec "echo to-be-cleared"
+  _seasalt_precmd
+  "$BIN" clear
+  out=$("$BIN" search --all to-be-cleared)
+  [[ -z $out ]] || fail "clear did not remove history: $out"
 }
 
 run_suite
