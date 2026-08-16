@@ -21,6 +21,7 @@
           meta = {
             description = "fish-style inline autosuggestion and per-directory history for bash";
             mainProgram = "seasalt";
+            license = [ pkgs.lib.licenses.mit pkgs.lib.licenses.asl20 ];
           };
         };
 

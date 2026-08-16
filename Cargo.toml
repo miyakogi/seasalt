@@ -3,6 +3,8 @@ name = "seasalt"
 version = "0.1.0"
 edition = "2021"
 description = "fish-style inline autosuggestion and per-directory history for bash"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/miyakogi/seasalt"
 
 [dependencies]
 anyhow = "1"
