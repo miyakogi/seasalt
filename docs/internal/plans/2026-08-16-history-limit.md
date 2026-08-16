@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust (edition 2021), rusqlite, clap, anyhow; bash smoke test; Criterion bench
 
-**Spec:** docs/superpowers/specs/2026-08-16-history-limit-design.md（本プランの要求の権威。実装者は spec とこのプランを両方読む）
+**Spec:** docs/internal/specs/2026-08-16-history-limit-design.md（本プランの要求の権威。実装者は spec とこのプランを両方読む）
 
 ## Global Constraints
 
@@ -429,7 +429,7 @@ fn bench_trim(c: &mut Criterion, dir: &BenchDir) {
 
 **Files:**
 - Modify: `README.md`（英語）
-- Modify: `docs/superpowers/specs/2026-08-15-seasalt-design.md`（日本語）
+- Modify: `docs/internal/specs/2026-08-15-seasalt-design.md`（日本語）
 
 - [ ] **Step 1: README 更新** — 3 箇所:
 
@@ -458,7 +458,7 @@ Set `SEASALT_HISTORY_MAX` to change the automatic history size limit
 `0` disables trimming.
 ```
 
-- [ ] **Step 2: 設計仕様更新** — `docs/superpowers/specs/2026-08-15-seasalt-design.md` の 2 箇所:
+- [ ] **Step 2: 設計仕様更新** — `docs/internal/specs/2026-08-15-seasalt-design.md` の 2 箇所:
 
 §3 ストレージの SQL ブロック（`CREATE INDEX idx_history_cwd_cmd ...` の後）に追加:
 
@@ -482,7 +482,7 @@ CREATE INDEX idx_history_started_at ON history(started_at);
 
 - [ ] **Step 3: 検証** — Run: `git diff --stat` で README と設計仕様のみ変更されていることを確認。テストは不要（ドキュメントのみ）
 
-- [ ] **Step 4: コミット** — `git add README.md docs/superpowers/specs/2026-08-15-seasalt-design.md && git commit -m "docs: document history limit and clear command"`
+- [ ] **Step 4: コミット** — `git add README.md docs/internal/specs/2026-08-15-seasalt-design.md && git commit -m "docs: document history limit and clear command"`
 
 ---
 

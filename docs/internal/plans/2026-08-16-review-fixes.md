@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust (edition 2021), rusqlite (bundled), clap, anyhow, dirs; bash スニペット; Nix flake
 
-**Spec:** docs/superpowers/specs/2026-08-15-seasalt-design.md（§5 の文言修正を含む）
+**Spec:** docs/internal/specs/2026-08-15-seasalt-design.md（§5 の文言修正を含む）
 
 **スコープ外（明示的に除外）:** DB 破損リカバリ（spec §7、要判断のため）、search と suggest_prefix の SQL 共通化（過剰抽象化）、record ロジックの lib 化。
 
@@ -293,7 +293,7 @@ fn search_defaults_to_current_directory() {
 ### Task 6: 文書・ビルド設定の軽微修正
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-08-15-seasalt-design.md:125`
+- Modify: `docs/internal/specs/2026-08-15-seasalt-design.md:125`
 - Modify: `flake.nix`
 
 - [ ] **Step 1: spec §5 修正** — 125 行目 `返った (session, id) を変数保持` → `返った行 id を変数保持`（§4 および実装と一致させる。session は照合に使われない）
@@ -322,7 +322,7 @@ fn search_defaults_to_current_directory() {
 - [ ] **Step 3: 検証** — Run: `nix eval .#packages.x86_64-linux.default.version`
   Expected: `"0.1.0"` を出力
 
-- [ ] **Step 4: コミット** — `git add docs/superpowers/specs/2026-08-15-seasalt-design.md flake.nix && git commit -m "chore: read package version from Cargo.toml; align spec data flow"`（事前承認済み）
+- [ ] **Step 4: コミット** — `git add docs/internal/specs/2026-08-15-seasalt-design.md flake.nix && git commit -m "chore: read package version from Cargo.toml; align spec data flow"`（事前承認済み）
 
 ---
 

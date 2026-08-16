@@ -34,7 +34,7 @@ Single Rust binary + a bash snippet compiled into it. SQLite (WAL) at
   referencing deleted files
 - Permissions: new data dir 0700 / new DB 0600 only; existing ones untouched
 - Design spec (authoritative, written in Japanese):
-  docs/superpowers/specs/2026-08-15-seasalt-design.md
+  docs/internal/specs/2026-08-15-seasalt-design.md
 
 ## Gotchas (hard-earned)
 
@@ -52,4 +52,4 @@ Single Rust binary + a bash snippet compiled into it. SQLite (WAL) at
 - Language conventions: comments in src/ and tests/ are English,
   README English, design spec Japanese.
 - Features follow: brainstorming → spec → plan → subagent-driven
-  implementation (docs/superpowers/; subagent defs in .opencode/agent/).
+  implementation (docs/internal/; subagent defs in .opencode/agent/).

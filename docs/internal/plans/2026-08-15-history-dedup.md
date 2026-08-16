@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust (edition 2021) / rusqlite 0.37 (bundled) / clap 4
 
-**Spec:** `docs/superpowers/specs/2026-08-15-seasalt-design.md` (Task 3 で本実装に合わせて更新)
+**Spec:** `docs/internal/specs/2026-08-15-seasalt-design.md` (Task 3 で本実装に合わせて更新)
 
 ## Global Constraints
 
@@ -323,7 +323,7 @@ git commit -m "feat: drop session matching from exit flow"
 ### Task 3: ドキュメント更新 (spec + README)
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-08-15-seasalt-design.md`
+- Modify: `docs/internal/specs/2026-08-15-seasalt-design.md`
 - Modify: `README.md`
 
 - [ ] **Step 1: spec を実装に合わせて更新**
@@ -383,7 +383,7 @@ CREATE INDEX idx_history_cwd_cmd ON history(cwd, cmd);
 - [ ] **Step 3: コミット (ユーザー承認後に)**
 
 ```bash
-git add docs/superpowers/specs/2026-08-15-seasalt-design.md README.md
+git add docs/internal/specs/2026-08-15-seasalt-design.md README.md
 git commit -m "docs: document history deduplication"
 ```
 
