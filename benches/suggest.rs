@@ -130,6 +130,57 @@ fn bench_in_process(c: &mut Criterion, dir: &BenchDir) {
     group.finish();
 }
 
+/// Cost of the automatic trim on record: under the limit (the steady
+/// state, 0 rows deleted) and over the limit (deleting 10k rows once
+/// the limit is crossed).
+fn bench_trim(c: &mut Criterion, dir: &BenchDir) {
+    let path = dir.db_path(100_000);
+    let mut group = c.benchmark_group("trim_history");
+    group.sample_size(50);
+    group.bench_function("under_limit_100k", |b| {
+        b.iter(|| {
+            let conn = db::open(&path).unwrap();
+            db::trim_history(&conn, 100_000).unwrap();
+            black_box(());
+        })
+    });
+    group.sample_size(10);
+    group.bench_function("over_limit_delete_10k", |b| {
+        b.iter_batched(
+            || {
+                let conn = db::open(&path).unwrap();
+                // Re-grow the table to ~110k rows with fresh commands
+                // so each iteration deletes the same 10k again.
+                let base = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis() as i64;
+                conn.execute_batch("BEGIN").unwrap();
+                {
+                    let mut stmt = conn
+                        .prepare(
+                            "INSERT INTO history (cwd, cmd, started_at, session, paths)
+                             VALUES ('/x', ?1, ?2, 'bench', '')",
+                        )
+                        .unwrap();
+                    for i in 0..10_000 {
+                        stmt.execute(rusqlite::params![format!("fresh {i}"), base + i as i64])
+                            .unwrap();
+                    }
+                }
+                conn.execute_batch("COMMIT").unwrap();
+                conn
+            },
+            |conn| {
+                db::trim_history(&conn, 100_000).unwrap();
+                black_box(());
+            },
+            criterion::BatchSize::SmallInput,
+        )
+    });
+    group.finish();
+}
+
 /// Wall time of spawning the real binary (process startup + DB open +
 /// query), which is what the shell waits for on every keystroke.
 fn bench_suggest_end_to_end(c: &mut Criterion, dir: &BenchDir) {
@@ -194,6 +245,7 @@ fn run_all(c: &mut Criterion) {
         seed_db(&dir.db_path(rows), rows);
     }
     bench_in_process(c, &dir);
+    bench_trim(c, &dir);
     bench_suggest_end_to_end(c, &dir);
     bench_record_end_to_end(c, &dir);
 }
