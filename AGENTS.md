@@ -24,7 +24,7 @@ Single Rust binary + a bash snippet compiled into it. SQLite (WAL) at
 ## Architecture
 
 - Subcommands: record/exit (hook-facing, silent), suggest, search,
-  delete, init bash (init must not touch the DB or data dir — tested)
+  delete, clear, init bash (init must not touch the DB or data dir — tested)
 - suggest scopes: exact cwd → parents (nearest first) → global;
   10 candidates per scope; exact-case preferred, icase fallback (fish parity)
 - Same (cwd, cmd) dedups: record_history refreshes the existing row

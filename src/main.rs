@@ -174,13 +174,16 @@ fn now_ms() -> i64 {
 const DEFAULT_HISTORY_MAX: usize = 100_000;
 
 /// Resolves the history row limit from SEASALT_HISTORY_MAX. Unset or
-/// unparsable values fall back to the default; "0" means unlimited
-/// (None). record is hook-facing and silent, so failures are not
-/// reported.
+/// unparsable values fall back to the default; any value that parses
+/// to 0 means unlimited (None). record is hook-facing and silent, so
+/// failures are not reported.
 fn history_max() -> Option<usize> {
     match std::env::var("SEASALT_HISTORY_MAX") {
-        Ok(v) if v == "0" => None,
-        Ok(v) => Some(v.parse::<usize>().unwrap_or(DEFAULT_HISTORY_MAX)),
+        Ok(v) => match v.parse::<usize>() {
+            Ok(0) => None,
+            Ok(n) => Some(n),
+            Err(_) => Some(DEFAULT_HISTORY_MAX),
+        },
         Err(_) => Some(DEFAULT_HISTORY_MAX),
     }
 }
