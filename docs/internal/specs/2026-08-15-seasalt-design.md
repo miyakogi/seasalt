@@ -188,7 +188,7 @@ CREATE INDEX idx_history_started_at ON history(started_at);
 - **M1**: コア CLI(record / suggest / search)+ SQLite + ユニットテスト + flake.nix
 - **M2**: ble.sh 統合(init bash / source:seasalt / blehook)+ 実機確認 + 性能計測
 - **M3**: 検索 UI(Ctrl-R) — **見送り**(2026-08-16 決定)。Ctrl-R 履歴検索は atuin がカバーしており共存できるため(§1 の住み分け方針)。seasalt はインライン補完と CLI 検索(`seasalt search`)に集中する
-- **M4**: Tab 補完の fish 風化
+- **M4**: Tab 補完の fish 風化 — **見送り**(2026-08-16 決定)。完全な fish パリティ(説明文付き補完データベース)は維持コストが巨大。外部ツールによる代替も不可と判明: fig はサービス終了済み、inshellisense はシェル全体をラップする方式のため ble.sh/seasalt と共存できない。Tab 補完は ble.sh 標準の機能に委ねる
 
 ## 10. 依存クレート
 

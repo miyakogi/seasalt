@@ -229,4 +229,7 @@ suggestions, and vice versa.
 - Interactive `Ctrl-R` search is intentionally out of scope: `seasalt`
   keeps search CLI-only; atuin covers interactive history search (see
   [Coexistence with atuin](#coexistence-with-atuin)).
+- Tab completion is ble.sh's standard completion; a fish-style
+  completion database (per-command descriptions) is intentionally out
+  of scope.
 - No history sync across machines or users.
