@@ -437,3 +437,78 @@ fn search_defaults_to_current_directory() {
         .unwrap();
     assert_eq!(String::from_utf8(out.stdout).unwrap().lines().count(), 2);
 }
+
+#[test]
+fn record_trims_to_history_max() {
+    let dir = temp_data_dir();
+    for i in 0..12 {
+        let cmd = format!("cmd {i}");
+        bin()
+            .env("SEASALT_DATA_DIR", &dir)
+            .env("SEASALT_HISTORY_MAX", "10")
+            .args(["record", "--cwd", "/x", "--session", "s1", "--", &cmd])
+            .status()
+            .unwrap();
+    }
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "cmd"])
+        .output()
+        .unwrap();
+    let text = String::from_utf8(out.stdout).unwrap();
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 10);
+    assert!(lines.iter().any(|l| l.ends_with("cmd 11")));
+    assert!(!lines.iter().any(|l| l.ends_with("cmd 0")));
+}
+
+#[test]
+fn history_max_zero_disables_trim() {
+    let dir = temp_data_dir();
+    for i in 0..12 {
+        let cmd = format!("cmd {i}");
+        bin()
+            .env("SEASALT_DATA_DIR", &dir)
+            .env("SEASALT_HISTORY_MAX", "0")
+            .args(["record", "--cwd", "/x", "--session", "s1", "--", &cmd])
+            .status()
+            .unwrap();
+    }
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "cmd"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8(out.stdout).unwrap().lines().count(), 12);
+}
+
+#[test]
+fn clear_removes_all_history() {
+    let dir = temp_data_dir();
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args([
+            "record",
+            "--cwd",
+            "/x",
+            "--session",
+            "s1",
+            "--",
+            "echo hello",
+        ])
+        .status()
+        .unwrap();
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["clear"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(out.stdout, b"");
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "hello"])
+        .output()
+        .unwrap();
+    assert_eq!(out.stdout, b"");
+}

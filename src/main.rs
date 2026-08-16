@@ -60,6 +60,8 @@ enum Command {
         #[arg(required = true)]
         ids: Vec<i64>,
     },
+    /// Delete all history entries and reclaim the file space (VACUUM)
+    Clear,
     /// Emit shell integration code (bash)
     Init { shell: String },
 }
@@ -70,7 +72,7 @@ fn main() -> ExitCode {
     // hook-facing record/exit/suggest fail silently.
     let interactive = matches!(
         cli.command,
-        Command::Init { .. } | Command::Search { .. } | Command::Delete { .. }
+        Command::Init { .. } | Command::Search { .. } | Command::Delete { .. } | Command::Clear
     );
     match run(cli) {
         Ok(()) => ExitCode::SUCCESS,
@@ -98,6 +100,9 @@ fn run(cli: Cli) -> Result<()> {
             let started_at = now_ms();
             let paths = seasalt::paths::required_paths(&cwd, &cmd).join("\0");
             let id = seasalt::db::record_history(&conn, &cwd, &cmd, started_at, &session, &paths)?;
+            if let Some(max) = history_max() {
+                seasalt::db::trim_history(&conn, max)?;
+            }
             println!("{id}");
         }
         Command::Exit { last_id, code } => {
@@ -141,6 +146,10 @@ fn run(cli: Cli) -> Result<()> {
             let conn = open_db()?;
             seasalt::db::delete_by_ids(&conn, &ids)?;
         }
+        Command::Clear => {
+            let conn = open_db()?;
+            seasalt::db::clear(&conn)?;
+        }
         Command::Init { shell } => match shell.as_str() {
             "bash" => print!("{}", seasalt::integration::bash_init_script()),
             other => anyhow::bail!("unsupported shell: {other}"),
@@ -159,4 +168,19 @@ fn now_ms() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
+}
+
+/// Default history row limit when SEASALT_HISTORY_MAX is unset
+const DEFAULT_HISTORY_MAX: usize = 100_000;
+
+/// Resolves the history row limit from SEASALT_HISTORY_MAX. Unset or
+/// unparsable values fall back to the default; "0" means unlimited
+/// (None). record is hook-facing and silent, so failures are not
+/// reported.
+fn history_max() -> Option<usize> {
+    match std::env::var("SEASALT_HISTORY_MAX") {
+        Ok(v) if v == "0" => None,
+        Ok(v) => Some(v.parse::<usize>().unwrap_or(DEFAULT_HISTORY_MAX)),
+        Err(_) => Some(DEFAULT_HISTORY_MAX),
+    }
 }
