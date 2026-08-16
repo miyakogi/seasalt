@@ -226,6 +226,7 @@ suggestions, and vice versa.
 
 - Autosuggestions require ble.sh; without it only recording works (via
   bash-preexec) and a warning is printed on eval.
-- There is no interactive search UI yet; search is CLI-only (atuin
-  covers `Ctrl-R` history search instead).
+- Interactive `Ctrl-R` search is intentionally out of scope: `seasalt`
+  keeps search CLI-only; atuin covers interactive history search (see
+  [Coexistence with atuin](#coexistence-with-atuin)).
 - No history sync across machines or users.

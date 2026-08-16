@@ -187,7 +187,7 @@ CREATE INDEX idx_history_started_at ON history(started_at);
 
 - **M1**: コア CLI(record / suggest / search)+ SQLite + ユニットテスト + flake.nix
 - **M2**: ble.sh 統合(init bash / source:seasalt / blehook)+ 実機確認 + 性能計測
-- **M3**: 検索 UI(Ctrl-R、fzf 連携か ratatui かはその時点で判断)
+- **M3**: 検索 UI(Ctrl-R) — **見送り**(2026-08-16 決定)。Ctrl-R 履歴検索は atuin がカバーしており共存できるため(§1 の住み分け方針)。seasalt はインライン補完と CLI 検索(`seasalt search`)に集中する
 - **M4**: Tab 補完の fish 風化
 
 ## 10. 依存クレート
@@ -196,4 +196,3 @@ CREATE INDEX idx_history_started_at ON history(started_at);
 - `clap`(CLI パース)
 - `dirs`(データディレクトリ解決)
 - `anyhow`(エラー処理)
-- TUI 関連は M3 で追加判断
