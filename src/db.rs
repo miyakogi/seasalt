@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS history (
 CREATE INDEX IF NOT EXISTS idx_history_cwd ON history(cwd);
 CREATE INDEX IF NOT EXISTS idx_history_cmd ON history(cmd);
 CREATE INDEX IF NOT EXISTS idx_history_cwd_cmd ON history(cwd, cmd);
+CREATE INDEX IF NOT EXISTS idx_history_started_at ON history(started_at);
 ";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -157,6 +158,27 @@ pub fn delete_by_ids(conn: &Connection, ids: &[i64]) -> Result<()> {
     for id in ids {
         stmt.execute(rusqlite::params![id])?;
     }
+    Ok(())
+}
+
+/// Deletes history rows older than the newest `max` rows (by
+/// started_at, newest first). When the table has fewer than `max`
+/// rows, the subquery yields NULL and nothing is deleted. Callers
+/// must not pass `max = 0` (unlimited is handled before calling).
+pub fn trim_history(conn: &Connection, max: usize) -> Result<()> {
+    conn.execute(
+        "DELETE FROM history WHERE started_at < (
+           SELECT started_at FROM history ORDER BY started_at DESC, id DESC LIMIT 1 OFFSET ?1
+         )",
+        rusqlite::params![max as i64 - 1],
+    )?;
+    Ok(())
+}
+
+/// Deletes all history rows and reclaims the file space (VACUUM).
+/// Interactive command: success is silent, errors go to stderr.
+pub fn clear(conn: &Connection) -> Result<()> {
+    conn.execute_batch("DELETE FROM history; VACUUM;")?;
     Ok(())
 }
 
