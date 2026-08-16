@@ -54,6 +54,16 @@ alternative to ble.sh, but suggestions require ble.sh.
 
 ## Installation
 
+### Download a release binary
+
+```sh
+curl -L https://github.com/miyakogi/seasalt/releases/latest/download/seasalt-x86_64-unknown-linux-musl.tar.gz | tar xz
+sudo install -m 755 seasalt /usr/local/bin/seasalt
+```
+
+The release asset is a static binary for Linux x86_64 — no Rust
+toolchain or dependencies required.
+
 ### From source with cargo
 
 ```sh
