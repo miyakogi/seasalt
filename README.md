@@ -2,8 +2,9 @@
 
 Fish-style inline autosuggestion and per-directory history for bash.
 
-`seasalt` shows a gray suggestion of the rest of your command while you
-type (accept it with `→`), keeps history scoped to the directory you
+`seasalt` suggests the rest of your command while you type
+([ble.sh](https://github.com/akinomyoga/ble.sh) displays it as gray
+ghost text; `→` accepts it), keeps history scoped to the directory you
 are working in, and exposes a small CLI to search and maintain that
 history. It is a single Rust binary plus a bash integration snippet, and
 it uses its own SQLite store — it does not touch the shell's history
