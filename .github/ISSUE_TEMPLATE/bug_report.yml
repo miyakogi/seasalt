@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a bug or unexpected behavior
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in as
+        much detail as you can — reproduction steps make fixes fast.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps that trigger the problem.
+      placeholder: |
+        1. Run ...
+        2. Type ...
+        3. Press ...
+    validations:
+      required: true
+  - type: input
+    id: seasalt-version
+    attributes:
+      label: seasalt version
+      description: Output of `seasalt --version`
+      placeholder: seasalt 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: ble-version
+    attributes:
+      label: ble.sh version
+      description: Output of `echo "$_ble_version"` in an interactive session with ble.sh loaded
+      placeholder: 0.4.0-devel3
+  - type: input
+    id: bash-version
+    attributes:
+      label: bash version
+      description: Output of `bash --version`
+      placeholder: 5.3.15(1)-release
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      description: e.g. Linux distro, macOS version
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that might help (atuin installed? unusual setup?)
