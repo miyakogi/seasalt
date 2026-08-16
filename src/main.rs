@@ -68,8 +68,8 @@ enum Command {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    // Interactive commands (init/search/delete) report errors to stderr;
-    // hook-facing record/exit/suggest fail silently.
+    // Interactive commands (init/search/delete/clear) report errors to
+    // stderr; hook-facing record/exit/suggest fail silently.
     let interactive = matches!(
         cli.command,
         Command::Init { .. } | Command::Search { .. } | Command::Delete { .. } | Command::Clear
