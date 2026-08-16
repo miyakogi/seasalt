@@ -56,7 +56,7 @@ alternative to ble.sh, but suggestions require ble.sh.
 ### From source with cargo
 
 ```sh
-git clone <repo-url> seasalt
+git clone https://github.com/miyakogi/seasalt seasalt
 cd seasalt
 cargo install --path .
 ```
