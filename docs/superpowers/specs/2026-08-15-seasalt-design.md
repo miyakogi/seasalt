@@ -73,9 +73,12 @@ CREATE TABLE history (
 CREATE INDEX idx_history_cwd ON history(cwd);
 CREATE INDEX idx_history_cmd ON history(cmd);
 CREATE INDEX idx_history_cwd_cmd ON history(cwd, cmd);
+CREATE INDEX idx_history_started_at ON history(started_at);
 ```
 
 `paths` には record 時点で実在したファイル引数のパスを NUL 区切りで保存する(詳細は §6)。`(cwd, cmd)` の複合インデックスは record 時の重複判定に使う。旧スキーマ(`paths` 列なし)の DB は初回接続時に `ALTER TABLE ... ADD COLUMN` で自動マイグレーションされる。
+
+履歴は件数上限 (デフォルト 100,000 件、`SEASALT_HISTORY_MAX` で変更、`0` で無効化) を持ち、record のたびに `started_at` が古い行から上限を超える分を自動削除する。dedup で更新された行は最新扱いになるため保護される。`idx_history_started_at` はこのトリムに使う。削除コストは実測済み (100k 行で warm ~0.2ms / cold ~2.1ms、設計ドキュメント 2026-08-16-history-limit-design.md §2 参照)。
 
 新規作成時のみ、データディレクトリは 0700、履歴ファイルは 0600 に設定する(既存のディレクトリ・ファイルのパーミッションは変更しない)。履歴に機微な情報が入り得るため。WAL モードの `-wal`/`-shm` ファイルはディレクトリの 0700 により保護される。
 
@@ -107,6 +110,9 @@ CREATE INDEX idx_history_cwd_cmd ON history(cwd, cmd);
 - `seasalt delete ID...`
   - 指定した行 id の履歴を削除する。存在しない id は静かに無視し、成功時は何も出力しない
   - 誤ってパスワードなどを記録してしまった行の削除に使う
+- `seasalt clear`
+  - 履歴を全件削除し、`VACUUM` でファイル領域を回収する (fish の `history clear` 相当)
+  - 成功時は何も出力しない。interactive コマンド (エラーは stderr)
 - `seasalt init bash`
   - 統合スニペット全文(関数定義 + フック登録)を stdout に出力し、`.bashrc` で eval する
   - スニペットはバイナリに埋め込む(`include_str!`)ので、nix ストアパスの変化に強い

@@ -46,7 +46,7 @@ Single Rust binary + a bash snippet compiled into it. SQLite (WAL) at
 - SQLite `LIKE` ignores COLLATE BINARY: use GLOB for case-sensitive
   prefix matching (db.rs suggest_prefix).
 - Silence contract: record/exit/suggest never write to stderr;
-  init/search/delete report errors to stderr.
+  init/search/delete/clear report errors to stderr.
 - Language conventions: comments in src/ and tests/ are English,
   README English, design spec Japanese.
 - Features follow: brainstorming → spec → plan → subagent-driven

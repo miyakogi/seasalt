@@ -32,6 +32,10 @@ file.
   ` password-command` when you do not want the command (or its
   arguments, e.g. a secret) to appear in history or suggestions.
 - **Exit-code tracking** — every recorded command stores its exit code.
+- **History size limit** — history is automatically trimmed to the
+  newest 100,000 entries (configurable via `SEASALT_HISTORY_MAX`,
+  `0` disables trimming). `seasalt clear` deletes everything and
+  reclaims the file space.
 - **Search and delete CLI** — `seasalt search` queries history across
   all directories or scoped to one, and `seasalt delete ID...` removes
   entries by id (e.g. a password recorded by accident).
@@ -141,6 +145,10 @@ seasalt delete ID...
     once, separated by spaces. Silently ignores ids that do not exist
     and prints nothing on success.
 
+seasalt clear
+    Delete all history entries and reclaim the file space (VACUUM).
+    Prints nothing on success.
+
 seasalt init bash
     Print the bash integration snippet.
 ```
@@ -193,6 +201,10 @@ concurrent access by multiple shells.
 Set `SEASALT_PRIVATE_MODE` to a non-empty value to stop recording
 commands (like fish's `$fish_private_mode`); existing history and
 suggestions are unaffected. Unset it to resume recording.
+
+Set `SEASALT_HISTORY_MAX` to change the automatic history size limit
+(default 100,000 entries; the oldest entries are dropped on record).
+`0` disables trimming.
 
 ## Coexistence with atuin
 
