@@ -98,7 +98,11 @@ fn seed_db(path: &Path, rows: usize) {
                 .wrapping_add(1_442_695_040_888_963_407);
             let cwd = DIRS[(x >> 32) as usize % DIRS.len()];
             let cmd = CMDS[(x >> 33) as usize % CMDS.len()];
-            stmt.execute(rusqlite::params![cwd, cmd, i as i64, "bench", ""])
+            // Append a per-row suffix so every (cwd, cmd) pair is unique,
+            // satisfying the UNIQUE(cwd, cmd) index while preserving the
+            // original cwd/cmd distribution for realistic cardinality.
+            let unique_cmd = format!("{cmd} #{i}");
+            stmt.execute(rusqlite::params![cwd, unique_cmd, i as i64, "bench", ""])
                 .unwrap();
         }
     }

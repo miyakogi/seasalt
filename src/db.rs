@@ -148,8 +148,8 @@ pub fn record_history(
     // inserting a duplicate. The UNIQUE(cwd, cmd) index also removes the
     // check-then-write race between concurrent shells.
     //
-    // Note: last_insert_rowid() does NOT return the existing row's id
-    // when the ON CONFLICT path fires, so we use RETURNING to get it.
+    // Note: RETURNING id is unambiguous across SQLite versions and avoids
+    // relying on last_insert_rowid() semantics on the ON CONFLICT / DO UPDATE path.
     let id: i64 = conn.query_row(
         "INSERT INTO history (cwd, cmd, started_at, session, paths)
          VALUES (?1, ?2, ?3, ?4, ?5)

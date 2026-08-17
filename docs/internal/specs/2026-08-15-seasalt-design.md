@@ -54,7 +54,7 @@ SQLite 直接アクセス方式(デーモンなし)。`suggest` は呼ばれる�
 | end-to-end hit(プロセス起動込み) | — | 1.22ms | 3.91ms | 25.2ms |
 | end-to-end record(preexec フック) | — | — | 3.80ms | — |
 
-**結論: デーモン化は不要と判断する。** 実用的な履歴規模(10万行 ≒ 数年分)では end-to-end で 4ms 未満、100万行の最悪ケースでも 68ms で ble.sh 側の 200ms timeout に大きな余裕がある。100万行を超える運用になった場合はグローバル空振り時のソート込みスキャンが支配的になるため、その時点でインデックス/クエリ最適化を検討する(現時点では YAGNI)。
+**結論: デーモン化は不要と判断する。** 実用的な履歴規模(10万行 ≒ 数年分)では end-to-end で 4ms 未満、100万行の最悪ケースでも 68ms で seasalt suggest 内の 200ms バジェットに大きな余裕がある。100万行を超える運用になった場合はグローバル空振り時のソート込みスキャンが支配的になるため、その時点でインデックス/クエリ最適化を検討する(現時点では YAGNI)。
 
 ### ストレージ
 
@@ -72,7 +72,7 @@ CREATE TABLE history (
 );
 CREATE INDEX idx_history_cwd ON history(cwd);
 CREATE INDEX idx_history_cmd ON history(cmd);
-CREATE INDEX idx_history_cwd_cmd_unique ON history(cwd, cmd);
+CREATE UNIQUE INDEX idx_history_cwd_cmd_unique ON history(cwd, cmd);
 CREATE INDEX idx_history_started_at ON history(started_at);
 ```
 
