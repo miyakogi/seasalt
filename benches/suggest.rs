@@ -53,11 +53,12 @@ const SIZES: &[usize] = &[1_000, 10_000, 100_000, 1_000_000];
 struct BenchDir(PathBuf);
 
 impl BenchDir {
-    fn new() -> Self {
+    fn new(tag: &str) -> Self {
         let path = std::env::temp_dir().join(format!(
-            "seasalt-bench-{}-{}",
+            "seasalt-bench-{}-{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("t")
+            std::thread::current().name().unwrap_or("t"),
+            tag,
         ));
         let _ = std::fs::remove_dir_all(&path);
         std::fs::create_dir_all(&path).unwrap();
@@ -249,14 +250,27 @@ fn bench_record_end_to_end(c: &mut Criterion, dir: &BenchDir) {
 }
 
 fn run_all(c: &mut Criterion) {
-    let dir = BenchDir::new();
+    // Main dir: used by in-process and trim benchmarks.
+    // bench_trim mutates the 100k DB (inserts 10k fresh rows per
+    // iteration of over_limit_delete_10k), so end-to-end groups must
+    // use a separate dir to avoid stale-state panics on hit assertions.
+    let dir = BenchDir::new("inproc");
     for &rows in SIZES {
         seed_db(&dir.db_path(rows), rows);
     }
+
+    // Dedicated dir for end-to-end groups.  These only need 10k/100k/1M
+    // (the sizes they iterate over), but seeding all SIZES keeps the
+    // code simple and the extra cost is negligible vs. process-spawn time.
+    let e2e_dir = BenchDir::new("e2e");
+    for &rows in SIZES {
+        seed_db(&e2e_dir.db_path(rows), rows);
+    }
+
     bench_in_process(c, &dir);
     bench_trim(c, &dir);
-    bench_suggest_end_to_end(c, &dir);
-    bench_record_end_to_end(c, &dir);
+    bench_suggest_end_to_end(c, &e2e_dir);
+    bench_record_end_to_end(c, &e2e_dir);
 }
 
 criterion_group!(benches, run_all);
