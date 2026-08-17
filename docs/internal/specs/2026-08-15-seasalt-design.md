@@ -72,11 +72,11 @@ CREATE TABLE history (
 );
 CREATE INDEX idx_history_cwd ON history(cwd);
 CREATE INDEX idx_history_cmd ON history(cmd);
-CREATE INDEX idx_history_cwd_cmd ON history(cwd, cmd);
+CREATE INDEX idx_history_cwd_cmd_unique ON history(cwd, cmd);
 CREATE INDEX idx_history_started_at ON history(started_at);
 ```
 
-`paths` には record 時点で実在したファイル引数のパスを NUL 区切りで保存する(詳細は §6)。`(cwd, cmd)` の複合インデックスは record 時の重複判定に使う。旧スキーマ(`paths` 列なし)の DB は初回接続時に `ALTER TABLE ... ADD COLUMN` で自動マイグレーションされる。
+`paths` には record 時点で実在したファイル引数のパスを NUL 区切りで保存する(詳細は §6)。`(cwd, cmd)` の複合インデックスは record 時の重複判定に使う。旧スキーマ(`paths` 列なし)の DB は初回接続時に `ALTER TABLE ... ADD COLUMN` で自動マイグレーションされる。マイグレーションは `PRAGMA user_version` で段階適用する。
 
 履歴は件数上限 (デフォルト 100,000 件、`SEASALT_HISTORY_MAX` で変更、`0` で無効化) を持ち、record のたびに `started_at` が古い行から上限を超える分を自動削除する。dedup で更新された行は最新扱いになるため保護される。`idx_history_started_at` はこのトリムに使う。削除コストは実測済み (100k 行で warm ~0.2ms / cold ~2.1ms、設計ドキュメント 2026-08-16-history-limit-design.md §2 参照)。
 
@@ -162,9 +162,9 @@ CREATE INDEX idx_history_started_at ON history(started_at);
 
 ### 履歴の重複除去 (fish パリティ)
 
-- record 時に同一 (cwd, cmd) の既存行があれば、新規 insert せずに行を最新化する (started_at 更新・paths 置換・exit_code リセット)
+- record 時に同一 (cwd, cmd) の既存行があれば、新規 insert せずに行を最新化する (started_at 更新・paths 置換・exit_code リセット)。`INSERT ... ON CONFLICT(cwd, cmd) DO UPDATE` で原子的に実現する
 - 同一コマンドは連続・非連続を問わず 1 行しか残らない (fish の "Any duplicate history items are automatically removed" に相当。fish はコマンド文字列のみで判定するが、seasalt はディレクトリ別スコープが本体のため (cwd, cmd) をキーにする)
-- 既に溜まっている旧データの重複行は放置する (新規 record からのみ dedup が効く)
+- 旧データに存在する重複行は、初回 upgrade 時に `(cwd, cmd)` ごとに最新 1 行へ整理する (`PRAGMA user_version` v2 マイグレーションで `ROW_NUMBER()` ウィンドウ関数を使って除去)
 - トレードオフ: 中間実行の時刻・exit code は残らない (最後の実行分のみ)
 
 ## 7. エラー処理

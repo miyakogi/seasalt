@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use rusqlite::{Connection, OptionalExtension};
+use rusqlite::Connection;
 
 pub const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS history (
@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS history (
 );
 CREATE INDEX IF NOT EXISTS idx_history_cwd ON history(cwd);
 CREATE INDEX IF NOT EXISTS idx_history_cmd ON history(cmd);
-CREATE INDEX IF NOT EXISTS idx_history_cwd_cmd ON history(cwd, cmd);
 CREATE INDEX IF NOT EXISTS idx_history_started_at ON history(started_at);
 ";
 
@@ -98,6 +97,24 @@ fn migrate(conn: &Connection) -> Result<()> {
         }
         conn.pragma_update(None, "user_version", 1)?;
     }
+    if version < 2 {
+        // v1 -> v2: collapse legacy duplicate (cwd, cmd) rows (keeping
+        // the newest) and enforce uniqueness so record can upsert
+        // atomically. The plain (cwd, cmd) index is superseded by the
+        // unique one.
+        conn.execute_batch(
+            "DELETE FROM history WHERE id NOT IN (
+               SELECT id FROM (
+                 SELECT id, ROW_NUMBER() OVER (
+                   PARTITION BY cwd, cmd ORDER BY started_at DESC, id DESC
+                 ) AS rn FROM history
+               ) WHERE rn = 1
+             );
+             CREATE UNIQUE INDEX IF NOT EXISTS idx_history_cwd_cmd_unique ON history(cwd, cmd);
+             DROP INDEX IF EXISTS idx_history_cwd_cmd;",
+        )?;
+        conn.pragma_update(None, "user_version", 2)?;
+    }
     Ok(())
 }
 
@@ -126,30 +143,26 @@ pub fn record_history(
     session: &str,
     paths: &str,
 ) -> Result<i64> {
-    let existing: Option<i64> = conn
-        .query_row(
-            "SELECT id FROM history WHERE cwd = ?1 AND cmd = ?2
-             ORDER BY started_at DESC, id DESC LIMIT 1",
-            rusqlite::params![cwd, cmd],
-            |r| r.get(0),
-        )
-        .optional()?;
-    match existing {
-        Some(id) => {
-            conn.execute(
-                "UPDATE history SET started_at = ?1, session = ?2, paths = ?3, exit_code = NULL WHERE id = ?4",
-                rusqlite::params![started_at, session, paths, id],
-            )?;
-            Ok(id)
-        }
-        None => {
-            conn.execute(
-                "INSERT INTO history (cwd, cmd, started_at, session, paths) VALUES (?1, ?2, ?3, ?4, ?5)",
-                rusqlite::params![cwd, cmd, started_at, session, paths],
-            )?;
-            Ok(conn.last_insert_rowid())
-        }
-    }
+    // Atomic upsert on (cwd, cmd): a re-run refreshes the existing row
+    // (started_at/session/paths updated, exit_code reset) instead of
+    // inserting a duplicate. The UNIQUE(cwd, cmd) index also removes the
+    // check-then-write race between concurrent shells.
+    //
+    // Note: last_insert_rowid() does NOT return the existing row's id
+    // when the ON CONFLICT path fires, so we use RETURNING to get it.
+    let id: i64 = conn.query_row(
+        "INSERT INTO history (cwd, cmd, started_at, session, paths)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(cwd, cmd) DO UPDATE SET
+           started_at = excluded.started_at,
+           session = excluded.session,
+           paths = excluded.paths,
+           exit_code = NULL
+         RETURNING id",
+        rusqlite::params![cwd, cmd, started_at, session, paths],
+        |r| r.get(0),
+    )?;
+    Ok(id)
 }
 
 /// Updates the exit_code of a row by id. The session is not used for
