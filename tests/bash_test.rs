@@ -38,6 +38,7 @@ fn init_bash_survives_eval_command_substitution() {
         r#"set -euo pipefail
 SEASALT_BIN={bin}
 SEASALT_DATA_DIR=$(mktemp -d)
+trap 'rm -rf "$SEASALT_DATA_DIR"' EXIT
 blehook() {{ :; }}
 ble/util/idle.push() {{ :; }}
 eval "$("$SEASALT_BIN" init bash)"
@@ -82,6 +83,7 @@ fn init_bash_reorders_auto_source_after_idle() {
         r#"set -euo pipefail
 SEASALT_BIN={bin}
 SEASALT_DATA_DIR=$(mktemp -d)
+trap 'rm -rf "$SEASALT_DATA_DIR"' EXIT
 BASHER_HOOKS=()
 BASHER_IDLE_TASKS=()
 blehook() {{ BASHER_HOOKS+=("$*"); }}
