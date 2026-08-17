@@ -196,20 +196,23 @@ pub(crate) fn suggest_prefix(
     if needle.is_empty() {
         return Ok(Vec::new());
     }
-    // Use GLOB (case-sensitive) for case-sensitive matching: SQLite
-    // LIKE stays ASCII case-insensitive even with COLLATE BINARY.
-    let (like, pattern) = if sensitive {
-        ("GLOB", format!("{}*", escape_glob(needle)))
+    let (pattern, op_free, op_scoped) = if sensitive {
+        let pat = format!("{}*", escape_glob(needle));
+        (pat, "cmd GLOB ?1", "cmd GLOB ?2")
     } else {
-        ("LIKE", format!("{}%", escape_like(needle)))
+        // LIKE needs an explicit ESCAPE clause: without it the
+        // backslashes from escape_like are treated as ordinary
+        // characters and `_`/`%` still act as wildcards.
+        let pat = format!("{}%", escape_like(needle));
+        (pat, "cmd LIKE ?1 ESCAPE '\\'", "cmd LIKE ?2 ESCAPE '\\'")
     };
     let sql = match cwd {
         Some(_) => format!(
-            "SELECT cmd, paths FROM history WHERE cwd = ?1 AND cmd {like} ?2
+            "SELECT cmd, paths FROM history WHERE cwd = ?1 AND {op_scoped}
              ORDER BY started_at DESC, id DESC LIMIT ?3"
         ),
         None => format!(
-            "SELECT cmd, paths FROM history WHERE cmd {like} ?1
+            "SELECT cmd, paths FROM history WHERE {op_free}
              ORDER BY started_at DESC, id DESC LIMIT ?2"
         ),
     };

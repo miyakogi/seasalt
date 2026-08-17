@@ -338,3 +338,27 @@ fn global_scope_prefers_exact_case() {
         .unwrap();
     assert_eq!(got, "cargo check");
 }
+
+#[test]
+fn like_escape_handles_underscore_in_icase_fallback() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    // Only a case-mismatched candidate exists: the sensitive GLOB pass
+    // misses and the icase LIKE fallback must not treat `_` as a wildcard.
+    db::record_history(&conn, "/proj/sub", "LS _x.txt", 2000, "s", "").unwrap();
+    let got = suggest::suggest(&conn, "/proj/sub", "ls _")
+        .unwrap()
+        .unwrap();
+    assert_eq!(got, "LS _x.txt");
+}
+
+#[test]
+fn like_escape_handles_percent_in_icase_fallback() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    db::record_history(&conn, "/proj/sub", "PRINTF %s x", 2000, "s", "").unwrap();
+    let got = suggest::suggest(&conn, "/proj/sub", "printf %s")
+        .unwrap()
+        .unwrap();
+    assert_eq!(got, "PRINTF %s x");
+}
