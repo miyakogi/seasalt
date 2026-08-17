@@ -23,6 +23,19 @@ Single Rust binary + a bash snippet compiled into it. SQLite (WAL) at
   include_str! (src/integration.rs): after editing it, rebuild before
   smoke tests or installs — `cargo test` alone may not exercise it.
 
+## Changelog and release
+
+- Keep CHANGELOG.md up to date in the same change as the code: record
+  user-visible changes (features, behavior changes, bug fixes,
+  performance/dependency changes) in the existing entry format.
+  Internal refactors and test-only changes may be omitted.
+- When preparing a release (tagging `vX.Y.Z`), update ALL of these in
+  the release commit:
+  - `Cargo.toml` version (`flake.nix` reads it from there — one place)
+  - `CHANGELOG.md` entry heading (`## [X.Y.Z] - YYYY-MM-DD`)
+  - `README.md` flake pin example (`github:miyakogi/seasalt/vX.Y.Z`)
+  Then tag `vX.Y.Z`; `.github/workflows/release.yml` builds the binary.
+
 ## Architecture
 
 - Subcommands: record/exit (hook-facing, silent), suggest, search,
