@@ -50,14 +50,15 @@ if [[ "$_seasalt_bin" ]]; then
       done;
       _ble_complete_auto_source=(seasalt "${_seasalt_sources[@]}");';
 
-    # Synchronous suggestion source. `seasalt suggest` is called with a
-    # timeout so a slow database never freezes the UI; on timeout the
-    # suggestion is simply skipped.
+    # Synchronous suggestion source. The binary enforces an in-process
+    # 200ms timeout (suggest_budgeted), so a slow database never freezes
+    # the UI. Do not add an external `timeout` wrapper or background the
+    # call — the synchronous call is required (spec §4).
     function ble/complete/auto-complete/source:seasalt {
       local _seasalt_empty='' cmd suggest;
       [[ "${_ble_edit_str:-}" ]] || return 1;
       ((_ble_edit_ind == ${#_ble_edit_str})) || return 1;
-      cmd=$(timeout 0.2 "$_seasalt_bin" suggest --cwd "$PWD" -- "$_ble_edit_str" 2>/dev/null) || return 1;
+      cmd=$("$_seasalt_bin" suggest --cwd "$PWD" -- "$_ble_edit_str" 2>/dev/null) || return 1;
       [[ "$cmd" ]] || return 1;
       [[ "$cmd" == "$_ble_edit_str" ]] && return 1;
       suggest=${cmd:${#_ble_edit_str}};

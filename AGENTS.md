@@ -44,7 +44,9 @@ Single Rust binary + a bash snippet compiled into it. SQLite (WAL) at
 - Only `eval "$(seasalt init bash)"` (quoted) is supported. Unquoted
   eval fails with a syntax error BY DESIGN (snippet comments) — do not
   "fix" that.
-- The snippet uses GNU coreutils `timeout` (macOS needs coreutils).
+- The snippet calls `seasalt suggest` directly; the binary enforces
+  the 200ms timeout in-process. Do not reintroduce an external
+  `timeout` wrapper or backgrounding.
 - SQLite `LIKE` ignores COLLATE BINARY: use GLOB for case-sensitive
   prefix matching (db.rs suggest_prefix).
 - Silence contract: record/exit/suggest never write to stderr;

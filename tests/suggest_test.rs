@@ -362,3 +362,27 @@ fn like_escape_handles_percent_in_icase_fallback() {
         .unwrap();
     assert_eq!(got, "PRINTF %s x");
 }
+
+#[test]
+fn zero_budget_aborts_before_any_query() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    db::record_history(&conn, "/proj/sub", "cargo build", 5000, "s", "").unwrap();
+
+    // An expired budget yields no suggestion (mid-query interrupts are
+    // swallowed; the pre-query deadline check makes this deterministic).
+    let got =
+        suggest::suggest_budgeted(&conn, "/proj/sub", "cargo", Some(std::time::Duration::ZERO))
+            .unwrap();
+    assert!(got.is_none());
+
+    // A generous budget, by contrast, still suggests the match.
+    let got = suggest::suggest_budgeted(
+        &conn,
+        "/proj/sub",
+        "cargo",
+        Some(std::time::Duration::from_secs(10)),
+    )
+    .unwrap();
+    assert_eq!(got, Some("cargo build".to_string()));
+}

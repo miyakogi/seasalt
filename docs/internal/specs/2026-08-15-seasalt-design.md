@@ -123,7 +123,7 @@ CREATE INDEX idx_history_started_at ON history(started_at);
 
 1. `ble/complete/auto-complete/source:seasalt` 関数の定義
    - `_ble_edit_str` と `$PWD` を `seasalt suggest` に渡す
-   - 呼び出しは同期で、`timeout 0.2` で 200ms を超えたら補完なしで継続する (`timeout` は GNU coreutils 由来。macOS では coreutils の導入が必要)
+   - 呼び出しは同期で、`suggest` 自体がプロセス内で 200ms のタイムアウトを課し、超過時は補完なしで継続する(外部 `timeout` 不要)
    - 結果があれば `ble/complete/auto-complete/enter h 0 "$suggest" '' "$cmd"` を呼ぶ
    - 非同期化 (ble.sh の bgproc / バックグラウンドサブシェル) は調査済み: いずれも bash 5.3 のジョブ表との相互作用で `[1] <pid>` のジョブ通知が表示される。ble.sh 側の修正待ちのため同期版を維持する
 2. `_ble_complete_auto_source` 配列の再整列(`seasalt syntax` の順)

@@ -1,4 +1,5 @@
 use std::process::ExitCode;
+use std::time::Duration;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -112,7 +113,12 @@ fn run(cli: Cli) -> Result<()> {
         Command::Suggest { cwd, line } => {
             let conn = open_db()?;
             let line = line.join(" ");
-            if let Some(cmd) = seasalt::suggest::suggest(&conn, &cwd, &line)? {
+            if let Some(cmd) = seasalt::suggest::suggest_budgeted(
+                &conn,
+                &cwd,
+                &line,
+                Some(Duration::from_millis(200)),
+            )? {
                 println!("{cmd}");
             }
         }
