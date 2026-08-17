@@ -34,9 +34,17 @@ jobs:
           tar czf seasalt-x86_64-unknown-linux-musl.tar.gz \
             -C target/x86_64-unknown-linux-musl/release seasalt
           sha256sum seasalt-x86_64-unknown-linux-musl.tar.gz > sha256SUMS
+      - name: Extract changelog entry for release notes
+        run: |
+          VER=${TAG#v}
+          awk -v ver="$VER" '
+            /^## \[/ { if (in_entry) exit; in_entry = ($0 ~ "^## \\[" ver "\\]"); next }
+            in_entry { print }
+          ' CHANGELOG.md > release-body.md
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
+          body_path: release-body.md
           files: |
             seasalt-x86_64-unknown-linux-musl.tar.gz
             sha256SUMS
