@@ -34,7 +34,8 @@ Single Rust binary + a bash snippet compiled into it. SQLite (WAL) at
   - `Cargo.toml` version (`flake.nix` reads it from there — one place)
   - `CHANGELOG.md` entry heading (`## [X.Y.Z] - YYYY-MM-DD`)
   - `README.md` flake pin example (`github:miyakogi/seasalt/vX.Y.Z`)
-  Then tag `vX.Y.Z`; `.github/workflows/release.yml` builds the binary.
+  Then tag `vX.Y.Z`; `.github/workflows/release.yml` builds the binary
+  and fills the release notes from the matching CHANGELOG.md section.
 
 ## Architecture
 
