@@ -54,7 +54,7 @@ SQLite 直接アクセス方式(デーモンなし)。`suggest` は呼ばれる�
 | end-to-end hit(プロセス起動込み) | — | 1.22ms | 3.91ms | 25.2ms |
 | end-to-end record(preexec フック) | — | — | 3.80ms | — |
 
-**結論: デーモン化は不要と判断する。** 実用的な履歴規模(10万行 ≒ 数年分)では end-to-end で 4ms 未満、100万行の最悪ケースでも 68ms で ble.sh 側の 200ms timeout に大きな余裕がある。100万行を超える運用になった場合はグローバル空振り時のソート込みスキャンが支配的になるため、その時点でインデックス/クエリ最適化を検討する(現時点では YAGNI)。
+**結論: デーモン化は不要と判断する。** 実用的な履歴規模(10万行 ≒ 数年分)では end-to-end で 4ms 未満、100万行の最悪ケースでも 68ms で seasalt suggest 内の 200ms バジェットに大きな余裕がある。100万行を超える運用になった場合はグローバル空振り時のソート込みスキャンが支配的になるため、その時点でインデックス/クエリ最適化を検討する(現時点では YAGNI)。
 
 ### ストレージ
 
@@ -72,11 +72,11 @@ CREATE TABLE history (
 );
 CREATE INDEX idx_history_cwd ON history(cwd);
 CREATE INDEX idx_history_cmd ON history(cmd);
-CREATE INDEX idx_history_cwd_cmd ON history(cwd, cmd);
+CREATE UNIQUE INDEX idx_history_cwd_cmd_unique ON history(cwd, cmd);
 CREATE INDEX idx_history_started_at ON history(started_at);
 ```
 
-`paths` には record 時点で実在したファイル引数のパスを NUL 区切りで保存する(詳細は §6)。`(cwd, cmd)` の複合インデックスは record 時の重複判定に使う。旧スキーマ(`paths` 列なし)の DB は初回接続時に `ALTER TABLE ... ADD COLUMN` で自動マイグレーションされる。
+`paths` には record 時点で実在したファイル引数のパスを NUL 区切りで保存する(詳細は §6)。`(cwd, cmd)` の複合インデックスは record 時の重複判定に使う。旧スキーマ(`paths` 列なし)の DB は初回接続時に `ALTER TABLE ... ADD COLUMN` で自動マイグレーションされる。マイグレーションは `PRAGMA user_version` で段階適用する。
 
 履歴は件数上限 (デフォルト 100,000 件、`SEASALT_HISTORY_MAX` で変更、`0` で無効化) を持ち、record のたびに `started_at` が古い行から上限を超える分を自動削除する。dedup で更新された行は最新扱いになるため保護される。`idx_history_started_at` はこのトリムに使う。削除コストは実測済み (100k 行で warm ~0.2ms / cold ~2.1ms、設計ドキュメント 2026-08-16-history-limit-design.md §2 参照)。
 
@@ -123,7 +123,7 @@ CREATE INDEX idx_history_started_at ON history(started_at);
 
 1. `ble/complete/auto-complete/source:seasalt` 関数の定義
    - `_ble_edit_str` と `$PWD` を `seasalt suggest` に渡す
-   - 呼び出しは同期で、`timeout 0.2` で 200ms を超えたら補完なしで継続する (`timeout` は GNU coreutils 由来。macOS では coreutils の導入が必要)
+   - 呼び出しは同期で、`suggest` 自体がプロセス内で 200ms のタイムアウトを課し、超過時は補完なしで継続する(外部 `timeout` 不要)
    - 結果があれば `ble/complete/auto-complete/enter h 0 "$suggest" '' "$cmd"` を呼ぶ
    - 非同期化 (ble.sh の bgproc / バックグラウンドサブシェル) は調査済み: いずれも bash 5.3 のジョブ表との相互作用で `[1] <pid>` のジョブ通知が表示される。ble.sh 側の修正待ちのため同期版を維持する
 2. `_ble_complete_auto_source` 配列の再整列(`seasalt syntax` の順)
@@ -162,9 +162,9 @@ CREATE INDEX idx_history_started_at ON history(started_at);
 
 ### 履歴の重複除去 (fish パリティ)
 
-- record 時に同一 (cwd, cmd) の既存行があれば、新規 insert せずに行を最新化する (started_at 更新・paths 置換・exit_code リセット)
+- record 時に同一 (cwd, cmd) の既存行があれば、新規 insert せずに行を最新化する (started_at 更新・paths 置換・exit_code リセット)。`INSERT ... ON CONFLICT(cwd, cmd) DO UPDATE` で原子的に実現する
 - 同一コマンドは連続・非連続を問わず 1 行しか残らない (fish の "Any duplicate history items are automatically removed" に相当。fish はコマンド文字列のみで判定するが、seasalt はディレクトリ別スコープが本体のため (cwd, cmd) をキーにする)
-- 既に溜まっている旧データの重複行は放置する (新規 record からのみ dedup が効く)
+- 旧データに存在する重複行は、初回 upgrade 時に `(cwd, cmd)` ごとに最新 1 行へ整理する (`PRAGMA user_version` v2 マイグレーションで `ROW_NUMBER()` ウィンドウ関数を使って除去)
 - トレードオフ: 中間実行の時刻・exit code は残らない (最後の実行分のみ)
 
 ## 7. エラー処理

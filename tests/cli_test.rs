@@ -541,3 +541,48 @@ fn clear_removes_all_history() {
         .unwrap();
     assert_eq!(out.stdout, b"");
 }
+
+#[test]
+fn search_pattern_wildcards_follow_sql_like() {
+    let dir = temp_data_dir();
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args([
+            "record",
+            "--cwd",
+            "/a",
+            "--session",
+            "s1",
+            "--",
+            "unique-abc-xyz",
+        ])
+        .status()
+        .unwrap();
+    // '%' matches any sequence (trailing wildcard here)
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "unique-%"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap().trim(),
+        "1\tunique-abc-xyz"
+    );
+    // '_' matches exactly one character (the '-')
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "unique_abc"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap().trim(),
+        "1\tunique-abc-xyz"
+    );
+    // A literal-without-wildcard pattern only matches when it fits
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "unique-abc-xzz"])
+        .output()
+        .unwrap();
+    assert_eq!(out.stdout, b"");
+}

@@ -1,4 +1,5 @@
 use std::process::ExitCode;
+use std::time::Duration;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -66,14 +67,22 @@ enum Command {
     Init { shell: String },
 }
 
+impl Command {
+    /// Interactive subcommands (init/search/delete/clear) report errors
+    /// on stderr; hook-facing subcommands (record/exit/suggest) fail
+    /// silently. Colocated here so new subcommands cannot silently
+    /// forget to classify themselves.
+    fn interactive(&self) -> bool {
+        matches!(
+            self,
+            Command::Init { .. } | Command::Search { .. } | Command::Delete { .. } | Command::Clear
+        )
+    }
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    // Interactive commands (init/search/delete/clear) report errors to
-    // stderr; hook-facing record/exit/suggest fail silently.
-    let interactive = matches!(
-        cli.command,
-        Command::Init { .. } | Command::Search { .. } | Command::Delete { .. } | Command::Clear
-    );
+    let interactive = cli.command.interactive();
     match run(cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
@@ -112,7 +121,12 @@ fn run(cli: Cli) -> Result<()> {
         Command::Suggest { cwd, line } => {
             let conn = open_db()?;
             let line = line.join(" ");
-            if let Some(cmd) = seasalt::suggest::suggest(&conn, &cwd, &line)? {
+            if let Some(cmd) = seasalt::suggest::suggest_budgeted(
+                &conn,
+                &cwd,
+                &line,
+                Some(Duration::from_millis(200)),
+            )? {
                 println!("{cmd}");
             }
         }

@@ -458,3 +458,70 @@ fn init_creates_started_at_index() {
         .unwrap();
     assert_eq!(name, "idx_history_started_at");
 }
+
+#[test]
+fn init_records_schema_version() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    let v: i64 = conn
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(v, 2);
+}
+
+#[test]
+fn init_dedupes_legacy_duplicates_and_adds_unique_index() {
+    let conn = Connection::open_in_memory().unwrap();
+    // Simulate a legacy DB: no paths column, duplicate (cwd, cmd) rows
+    conn.execute_batch(
+        "CREATE TABLE history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          cwd TEXT NOT NULL,
+          cmd TEXT NOT NULL,
+          exit_code INTEGER,
+          started_at INTEGER NOT NULL,
+          session TEXT
+        );",
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO history (cwd, cmd, started_at) VALUES ('/x', 'make', 1000)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO history (cwd, cmd, started_at) VALUES ('/x', 'make', 2000)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO history (cwd, cmd, started_at) VALUES ('/x', 'make', 3000)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO history (cwd, cmd, started_at) VALUES ('/x', 'test', 2500)",
+        [],
+    )
+    .unwrap();
+
+    db::init(&conn).unwrap();
+
+    let (count, latest): (i64, i64) = conn
+        .query_row("SELECT count(*), max(started_at) FROM history", [], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
+        .unwrap();
+    // 4 rows collapse to the newest 2 (one per (cwd, cmd))
+    assert_eq!(count, 2);
+    assert_eq!(latest, 3000);
+    let name: String = conn
+        .query_row(
+            "SELECT name FROM sqlite_master WHERE type = 'index'
+             AND name = 'idx_history_cwd_cmd_unique'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(name, "idx_history_cwd_cmd_unique");
+}
