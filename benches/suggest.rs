@@ -149,6 +149,10 @@ fn bench_trim(c: &mut Criterion, dir: &BenchDir) {
         })
     });
     group.sample_size(10);
+    // Global monotonic counter ensures every inserted "fresh" command
+    // is unique across iterations, avoiding SQLITE_CONSTRAINT_UNIQUE
+    // when the same (cwd, cmd) pair survives a trim between iterations.
+    static FRESH_COUNTER: AtomicU64 = AtomicU64::new(0);
     group.bench_function("over_limit_delete_10k", |b| {
         b.iter_batched(
             || {
@@ -168,7 +172,8 @@ fn bench_trim(c: &mut Criterion, dir: &BenchDir) {
                         )
                         .unwrap();
                     for i in 0..10_000 {
-                        stmt.execute(rusqlite::params![format!("fresh {i}"), base + i as i64])
+                        let n = FRESH_COUNTER.fetch_add(1, Ordering::Relaxed);
+                        stmt.execute(rusqlite::params![format!("fresh-{n}"), base + i as i64])
                             .unwrap();
                     }
                 }

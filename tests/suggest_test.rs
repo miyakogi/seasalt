@@ -390,18 +390,25 @@ fn zero_budget_aborts_before_any_query() {
 /// Exercises the mid-query interrupt path (OperationInterrupted swallow).
 ///
 /// Unlike `zero_budget_aborts_before_any_query` which short-circuits at the
-/// pre-query `expired()` check, this test seeds enough rows that the SQLite
-/// query executes >= 100 000 VM instructions — the threshold at which
-/// `progress_handler` fires.  The deadline is set to zero so it expires
-/// before the query finishes, causing `OperationInterrupted` to bubble up
-/// and be swallowed by `suggest_budgeted`.
+/// pre-query `expired()` check, this test uses a tiny but *positive* budget
+/// so the pre-query `expired()` returns false and the SQL query actually
+/// starts.  200k rows with a broad prefix ("c*") force the scoped query to
+/// scan and sort a large range — easily taking milliseconds, far longer than
+/// the 1 µs budget.  The `progress_handler` (fires every 100k VM ops) sees
+/// the expired deadline mid-query and SQLite raises `OperationInterrupted`,
+/// which `suggest_budgeted` swallows as `Ok(None)`.
+///
+/// A second assertion with a generous budget on the same data proves the
+/// query *would* succeed without the interrupt — if the swallow path were
+/// wrongly turned into an error, this test would fail.
 #[test]
 fn mid_query_interrupt_is_swallowed() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
 
-    // Seed a large-ish table: 100k rows in the same cwd.  All share the
-    // prefix "cmd " so the LIKE/GLOB scan cannot be short-circuited.
+    // Seed 200k rows in the same cwd, all starting with "c" so the GLOB
+    // "c*" scan covers the entire set.  The broad prefix + ORDER BY
+    // started_at DESC forces a full scan + sort before LIMIT kicks in.
     conn.execute_batch("BEGIN").unwrap();
     {
         let mut stmt = conn
@@ -410,23 +417,34 @@ fn mid_query_interrupt_is_swallowed() {
                  VALUES ('/big', ?1, ?2, 's', '')",
             )
             .unwrap();
-        for i in 0..100_000 {
-            stmt.execute(rusqlite::params![format!("cmd {i}"), i as i64])
+        for i in 0..200_000 {
+            stmt.execute(rusqlite::params![format!("cmd-{i}"), i as i64])
                 .unwrap();
         }
     }
     conn.execute_batch("COMMIT").unwrap();
 
-    // Zero nanosecond budget: deadline = Instant::now() which is already
-    // expired by the time the first query's progress_handler fires (after
-    // 100k VM ops).  This reliably exercises the OperationInterrupted
-    // catch path in suggest_budgeted rather than the pre-query early exit.
+    // Positive but tiny budget: 1 µs.  The pre-query expired() check
+    // (Instant::now() >= deadline) is false at entry because the deadline
+    // is ~1 µs in the future, so the query starts.  But the scan+sort of
+    // 200k rows takes milliseconds — long past the deadline.  The
+    // progress_handler fires after 100k VM ops, sees the expired deadline,
+    // and SQLite raises OperationInterrupted → swallowed as Ok(None).
     let got = suggest::suggest_budgeted(
         &conn,
         "/big",
-        "cmd",
-        Some(std::time::Duration::from_nanos(0)),
+        "c",
+        Some(std::time::Duration::from_micros(1)),
     );
-    // The interrupt must surface as Ok(None), not an error.
-    assert!(got.unwrap().is_none());
+    assert!(got.unwrap().is_none(), "interrupt should be swallowed");
+
+    // With a generous budget the same query succeeds, proving the data is
+    // valid and the only reason the short-budget call returned None was
+    // the mid-query interrupt.
+    let got =
+        suggest::suggest_budgeted(&conn, "/big", "c", Some(std::time::Duration::from_secs(10)));
+    assert!(
+        got.unwrap().is_some(),
+        "query should succeed without interrupt"
+    );
 }
