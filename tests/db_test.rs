@@ -458,3 +458,13 @@ fn init_creates_started_at_index() {
         .unwrap();
     assert_eq!(name, "idx_history_started_at");
 }
+
+#[test]
+fn init_records_schema_version() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    let v: i64 = conn
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(v, 1);
+}

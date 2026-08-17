@@ -83,9 +83,20 @@ fn restrict_file(path: &Path) -> Result<()> {
 
 pub fn init(conn: &Connection) -> Result<()> {
     conn.execute_batch(SCHEMA)?;
-    // Migration from the old schema (without the paths column)
-    if !has_column(conn, "paths")? {
-        conn.execute_batch("ALTER TABLE history ADD COLUMN paths TEXT NOT NULL DEFAULT ''")?;
+    migrate(conn)
+}
+
+/// Applies schema migrations in order, tracking the applied version in
+/// PRAGMA user_version so the per-open checks (PRAGMA table_info etc.)
+/// run once instead of on every connection.
+fn migrate(conn: &Connection) -> Result<()> {
+    let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    if version < 1 {
+        // v0 -> v1: ensure the paths column (legacy DBs predate it)
+        if !has_column(conn, "paths")? {
+            conn.execute_batch("ALTER TABLE history ADD COLUMN paths TEXT NOT NULL DEFAULT ''")?;
+        }
+        conn.pragma_update(None, "user_version", 1)?;
     }
     Ok(())
 }
