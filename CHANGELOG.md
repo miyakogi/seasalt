@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.1] - 2026-08-18
+
+Fixes and robustness improvements on top of 0.1.0.
+
+- Suggestion correctness: the case-insensitive fallback now matches
+  typed lines containing `_` or `%` (SQLite LIKE got an explicit
+  ESCAPE clause)
+- Faster suggestions: the 200ms timeout is enforced in-process — the
+  external coreutils `timeout` wrapper is gone, so each keystroke spawns
+  one process instead of two and macOS no longer needs coreutils
+- Atomic duplicate suppression: re-running a command in the same
+  directory refreshes its row via a unique (cwd, cmd) index, removing a
+  race between concurrent shells; legacy duplicate rows are collapsed to
+  the newest once on first use
+- Automatic schema migration (`PRAGMA user_version`) upgrades existing
+  databases on first use
+- Internal: silence-contract classification via `Command::interactive()`;
+  test hardening (search wildcards, mid-query timeout path, benchmarks)
+
 ## [0.1.0] - 2026-08-16
 
 First release: fish-style inline autosuggestions and per-directory
