@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.1.2] - 2026-08-18
 
 - Multi-line commands are recorded verbatim and suggested by their first
   line; `seasalt search` escapes embedded newlines/tabs/backslashes in

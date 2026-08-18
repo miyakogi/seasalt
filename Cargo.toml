@@ -1,6 +1,6 @@
 [package]
 name = "seasalt"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "fish-style inline autosuggestion and per-directory history for bash"
 license = "MIT OR Apache-2.0"
