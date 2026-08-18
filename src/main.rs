@@ -99,11 +99,11 @@ fn run(cli: Cli) -> Result<()> {
         Command::Record { cwd, session, cmd } => {
             let conn = open_db()?;
             let cmd = cmd.join(" ");
-            // Do not record commands starting with whitespace
-            // (space/tab), matching HISTCONTROL=ignorespace, so
-            // sensitive input such as passwords is never stored. The
-            // snippet (_seasalt_preexec) has the same guard.
-            if cmd.starts_with(' ') || cmd.starts_with('\t') {
+            // Do not record commands starting with whitespace,
+            // matching HISTCONTROL=ignorespace and the snippet's
+            // [[:space:]] guard (spec §4.1). Sensitive input such as
+            // passwords is never stored.
+            if cmd.chars().next().is_some_and(char::is_whitespace) {
                 return Ok(());
             }
             let started_at = now_ms();
@@ -148,11 +148,12 @@ fn run(cli: Cli) -> Result<()> {
             };
             let entries = seasalt::search::search(&conn, cwd_filter.as_deref(), &pattern, limit)?;
             for e in entries {
+                let cmd = escape_cmd(&e.cmd);
                 if tsv {
                     let code = e.exit_code.map(|c| c.to_string()).unwrap_or_default();
-                    println!("{}\t{}\t{}\t{}\t{}", e.id, e.cwd, e.cmd, code, e.started_at);
+                    println!("{}\t{}\t{}\t{}\t{}", e.id, e.cwd, cmd, code, e.started_at);
                 } else {
-                    println!("{}\t{}", e.id, e.cmd);
+                    println!("{}\t{}", e.id, cmd);
                 }
             }
         }
@@ -175,6 +176,15 @@ fn run(cli: Cli) -> Result<()> {
 fn open_db() -> Result<rusqlite::Connection> {
     let path = seasalt::db::default_db_path()?;
     seasalt::db::open(&path)
+}
+
+/// Escapes backslash, newline and tab in a command so search output
+/// stays one line per entry (multi-line commands are stored raw).
+/// suggest output is not escaped: it is the raw command for acceptance.
+fn escape_cmd(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('\n', "\\n")
+        .replace('\t', "\\t")
 }
 
 fn now_ms() -> i64 {

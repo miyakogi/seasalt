@@ -586,3 +586,115 @@ fn search_pattern_wildcards_follow_sql_like() {
         .unwrap();
     assert_eq!(out.stdout, b"");
 }
+
+const MULTI_LINE: &str = "echo multi\n  echo line2";
+
+#[test]
+fn record_and_search_multiline_command() {
+    let dir = temp_data_dir();
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["record", "--cwd", "/x", "--session", "s1", "--", MULTI_LINE])
+        .status()
+        .unwrap();
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "--tsv", "echo multi"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let text = String::from_utf8(out.stdout).unwrap();
+    // The embedded newline is escaped, so the entry stays one physical line
+    assert_eq!(text.lines().count(), 1);
+    let fields: Vec<&str> = text.trim().split('\t').collect();
+    assert_eq!(fields[2], "echo multi\\n  echo line2");
+    assert_eq!(fields[3], ""); // exit_code is NULL (no exit call)
+}
+
+#[test]
+fn suggest_matches_multiline_prefix() {
+    let dir = temp_data_dir();
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["record", "--cwd", "/x", "--session", "s1", "--", MULTI_LINE])
+        .status()
+        .unwrap();
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["suggest", "--cwd", "/x", "--", "echo multi"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8(out.stdout).unwrap().trim(), MULTI_LINE);
+}
+
+#[test]
+fn record_multiline_dedups_to_single_row() {
+    let dir = temp_data_dir();
+    for _ in 0..2 {
+        bin()
+            .env("SEASALT_DATA_DIR", &dir)
+            .args(["record", "--cwd", "/x", "--session", "s1", "--", MULTI_LINE])
+            .status()
+            .unwrap();
+    }
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "--tsv", "echo multi"])
+        .output()
+        .unwrap();
+    assert_eq!(out.stdout.iter().filter(|&&b| b == b'\n').count(), 1);
+}
+
+#[test]
+fn record_ignores_leading_newline_command() {
+    // A command starting with a newline is skipped, matching the
+    // snippet's [[:space:]] guard (spec §4.1).
+    let dir = temp_data_dir();
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args([
+            "record",
+            "--cwd",
+            "/x",
+            "--session",
+            "s1",
+            "--",
+            "\nsecret-thing",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(out.stdout, b"");
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "secret-thing"])
+        .output()
+        .unwrap();
+    assert_eq!(out.stdout, b"");
+}
+
+#[test]
+fn search_escapes_control_characters_in_cmd() {
+    let dir = temp_data_dir();
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args([
+            "record",
+            "--cwd",
+            "/x",
+            "--session",
+            "s1",
+            "--",
+            "echo a\\tb\\c",
+        ])
+        .status()
+        .unwrap();
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "echo a"])
+        .output()
+        .unwrap();
+    // Backslash and tab appear escaped; the entry is one line
+    let text = String::from_utf8(out.stdout).unwrap();
+    assert_eq!(text.lines().count(), 1);
+    assert!(text.contains("echo a\\\\tb\\\\c"));
+}
