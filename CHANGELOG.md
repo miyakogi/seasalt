@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+- Multi-line commands are recorded verbatim and suggested by their first
+  line; `seasalt search` escapes embedded newlines/tabs/backslashes in
+  its output so every entry stays on a single line
+- Commands starting with any whitespace (including a leading newline)
+  are never recorded (unified with the shell-side guard)
+
 ## [0.1.1] - 2026-08-18
 
 Fixes and robustness improvements on top of 0.1.0.

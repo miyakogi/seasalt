@@ -32,6 +32,10 @@ file.
   tab are never recorded, like bash's `HISTCONTROL=ignorespace`. Run
   ` password-command` when you do not want the command (or its
   arguments, e.g. a secret) to appear in history or suggestions.
+- **Multi-line command support** — multi-line commands (e.g. heredocs,
+  backslash continuations) are recorded verbatim and suggested by their
+  first line; `seasalt search` escapes embedded newlines, tabs, and
+  backslashes so every entry stays on a single line.
 - **Exit-code tracking** — every recorded command stores its exit code.
 - **History size limit** — history is automatically trimmed to the
   newest 100,000 entries (configurable via `SEASALT_HISTORY_MAX`,
@@ -149,7 +153,9 @@ seasalt search [--cwd DIR] [--all] [--limit N] [--tsv] PATTERN
     --tsv prints id, cwd, cmd, exit_code, started_at separated by
     tabs. By default search is scoped to the current directory; use
     --all for everything. PATTERN is matched as a substring (SQL LIKE
-    semantics), so % and _ act as wildcards.
+    semantics), so % and _ act as wildcards. Embedded backslashes,
+    newlines, and tabs in commands are escaped as `\\`, `\n`, and `\t`
+    so every entry stays on a single line.
 
 seasalt delete ID...
     Delete history entries by id. Multiple ids can be specified at

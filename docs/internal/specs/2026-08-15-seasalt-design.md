@@ -88,7 +88,7 @@ CREATE INDEX idx_history_started_at ON history(started_at);
 
 - `seasalt record --cwd DIR -- CMD`
   - preexec フックから呼ばれ履歴を記録する (実行前時点のエントリ作成)
-  - 先頭が空白 (スペースまたはタブ) のコマンドは記録しない (bash の `HISTCONTROL=ignorespace` と同じ。パスワードなどのセンシティブな入力を誤って保存しないため)。スニペットの `_seasalt_preexec` と record 本体の両方でガードする
+  - 先頭が空白文字 (スペース・タブ・改行など) のコマンドは記録しない (bash の `HISTCONTROL=ignorespace` と同じ。パスワードなどのセンシティブな入力を誤って保存しないため)。スニペットの `_seasalt_preexec` は `[[:space:]]*` で、record 本体は `char::is_whitespace()` でガードする
   - 環境変数 `SEASALT_PRIVATE_MODE` が非空の間は記録しない (fish の `$fish_private_mode` 相当。既存履歴とサジェストには影響しない。スニペットの `_seasalt_preexec` のみでガードする)
   - 同一 (cwd, cmd) の既存行があれば新規行を作らず、その行を最新化する (started_at 更新・paths 置換・exit_code リセット)。fish と同様、重複コマンドは履歴に 1 行しか残らない
   - 引数のうち記録時点で実在したファイルパスのみを `paths` に保存する (存在しなかった引数は制約にならない)
@@ -107,6 +107,7 @@ CREATE INDEX idx_history_started_at ON history(started_at);
   - フォルダ絞り検索 CLI(フェーズ 1)
   - デフォルト出力は `id<TAB>cmd`、`--tsv` は id, cwd, cmd, exit_code, started_at(行削除のために id を常に表示する)
   - パターンは SQL LIKE の部分一致で、`%` と `_` はワイルドカード
+  - cmd 内の `\`・改行・タブは `\\`・`\n`・`\t` にエスケープされ、1 行 = 1 エントリが維持される
 - `seasalt delete ID...`
   - 指定した行 id の履歴を削除する。存在しない id は静かに無視し、成功時は何も出力しない
   - 誤ってパスワードなどを記録してしまった行の削除に使う
