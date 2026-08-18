@@ -128,6 +128,23 @@ run_suite() {
   "$BIN" clear
   out=$("$BIN" search --all to-be-cleared)
   [[ -z $out ]] || fail "clear did not remove history: $out"
+
+  # Multi-line commands are recorded, deduped, searched and suggested
+  _seasalt_preexec $'echo multi\n  echo line2'
+  [[ $_seasalt_last_id =~ ^[0-9]+$ ]] || fail "multi-line record failed: $_seasalt_last_id"
+  _seasalt_precmd
+  local mlout msugg
+  mlout=$("$BIN" search --tsv "echo multi")
+  [[ $(printf '%s\n' "$mlout" | wc -l) -eq 1 ]] || fail "multi-line entry spans rows: $mlout"
+  [[ $mlout == *'echo multi\n  echo line2'* ]] || fail "multi-line cmd not escaped in search: $mlout"
+  _seasalt_preexec $'echo multi\n  echo line2'
+  _seasalt_precmd
+  rows=$("$BIN" search --tsv "echo multi" | wc -l)
+  [[ $rows -eq 1 ]] || fail "multi-line dedup failed: $rows"
+  msugg=$("$BIN" suggest --cwd "$PWD" -- 'echo multi')
+  [[ $msugg == $'echo multi\n  echo line2' ]] || fail "multi-line suggest mismatch: $msugg"
+  _seasalt_preexec $'\nsecret-multi'
+  [[ -z $_seasalt_last_id ]] || fail "leading-newline command recorded: $_seasalt_last_id"
 }
 
 run_suite
