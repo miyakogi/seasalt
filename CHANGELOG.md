@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+- zsh support: `seasalt init zsh` installs preexec/precmd history hooks and a
+  zsh-autosuggestions strategy for inline suggestions (requires zsh-autosuggestions;
+  zsh >= 5.0.8). History stays unified; records are tagged with their shell
+  (`shell` column, exposed as the last column of `seasalt search --tsv`).
+
 ## [0.1.2] - 2026-08-18
 
 - Multi-line commands are recorded verbatim and suggested by their first

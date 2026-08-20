@@ -1,6 +1,6 @@
 # seasalt
 
-Fish-style inline autosuggestion and per-directory history for bash.
+Fish-style inline autosuggestion and per-directory history for bash and zsh.
 
 `seasalt` suggests the rest of your command while you type
 ([ble.sh](https://github.com/akinomyoga/ble.sh) displays it as gray
@@ -49,12 +49,17 @@ file.
 
 - bash 4+ with [ble.sh](https://github.com/akinomyoga/ble.sh) (0.4.0
   development builds are fine) — required for autosuggestions.
+- zsh >= 5.0.8 with the
+  [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions)
+  plugin — required for autosuggestions.
 - A Rust toolchain to build from source (or Nix).
 
 ble.sh must be sourced in `.bashrc` **before** the seasalt integration
 snippet. Recording hooks also work with
 [bash-preexec](https://github.com/rcaloras/bash-preexec) as an
 alternative to ble.sh, but suggestions require ble.sh.
+
+For zsh, see the dedicated [zsh](#zsh) section below.
 
 ## Installation
 
@@ -129,6 +134,31 @@ export SEASALT_BIN=/path/to/seasalt
 eval "$("$SEASALT_BIN" init bash)"
 ```
 
+## zsh
+
+Add the following to `~/.zshrc`:
+
+```sh
+eval "$(seasalt init zsh)"
+```
+
+That is all — the snippet registers the preexec/precmd history hooks
+and a [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions)
+strategy that produces the inline suggestions.
+
+**Requirements** — zsh >= 5.0.8 and the `zsh-autosuggestions` plugin.
+Source `zsh-autosuggestions` **before** the `seasalt init zsh` line (or
+place the `init zsh` line last in `.zshrc`) so that seasalt's
+`ZSH_AUTOSUGGEST_STRATEGY` is preserved.
+
+Inline suggestions come from seasalt's custom zsh-autosuggestions
+strategy; if zsh-autosuggestions isn't loaded, only history recording
+works (a warning is printed).
+
+History is unified across bash and zsh — both shells share a single
+database. Each record is tagged with the shell it came from, visible as
+the last column of `seasalt search --tsv`.
+
 ## Usage
 
 ### CLI subcommands
@@ -150,7 +180,7 @@ seasalt suggest --cwd DIR -- LINE...
 
 seasalt search [--cwd DIR] [--all] [--limit N] [--tsv] PATTERN
     Search history. Default prints one "id<TAB>cmd" line per entry;
-    --tsv prints id, cwd, cmd, exit_code, started_at separated by
+    --tsv prints id, cwd, cmd, exit_code, started_at, shell separated by
     tabs. By default search is scoped to the current directory; use
     --all for everything. PATTERN is matched as a substring (SQL LIKE
     semantics), so % and _ act as wildcards. Embedded backslashes,
