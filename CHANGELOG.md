@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.2.2] - 2026-08-22
 
 - Improve suggestion responsiveness under DB contention by lowering `busy_timeout` to 150ms (inside the 200ms suggest budget)
 - Fix `trim_history` to strictly keep `SEASALT_HISTORY_MAX` entries even when many rows share the same timestamp (previously ties at the boundary survived)
