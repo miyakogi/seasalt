@@ -698,3 +698,38 @@ fn search_escapes_control_characters_in_cmd() {
     assert_eq!(text.lines().count(), 1);
     assert!(text.contains("echo a\\\\tb\\\\c"));
 }
+
+#[test]
+fn record_shell_default_bash_and_tsv_sixth_column() {
+    let dir = temp_data_dir();
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["record", "--cwd", "/x", "--session", "s1", "--", "echo a"])
+        .status()
+        .unwrap();
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args([
+            "record",
+            "--cwd",
+            "/y",
+            "--session",
+            "s2",
+            "--shell",
+            "zsh",
+            "--",
+            "echo b",
+        ])
+        .status()
+        .unwrap();
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "--tsv", "echo"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let text = String::from_utf8(out.stdout).unwrap();
+    let lines: Vec<&str> = text.trim().lines().collect();
+    assert!(lines.iter().any(|l| l.ends_with("bash")), "got: {text}");
+    assert!(lines.iter().any(|l| l.ends_with("zsh")), "got: {text}");
+}

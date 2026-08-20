@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "seasalt",
     version,
-    about = "fish-style autosuggestion and per-directory history for bash"
+    about = "fish-style autosuggestion and per-directory history for bash and zsh"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -23,6 +23,8 @@ enum Command {
         cwd: String,
         #[arg(long)]
         session: String,
+        #[arg(long, default_value = "bash")]
+        shell: String,
         #[arg(trailing_var_arg = true, required = true, allow_hyphen_values = true)]
         cmd: Vec<String>,
     },
@@ -96,7 +98,12 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<()> {
     match cli.command {
-        Command::Record { cwd, session, cmd } => {
+        Command::Record {
+            cwd,
+            session,
+            shell,
+            cmd,
+        } => {
             let conn = open_db()?;
             let cmd = cmd.join(" ");
             // Do not record commands starting with whitespace,
@@ -109,7 +116,7 @@ fn run(cli: Cli) -> Result<()> {
             let started_at = now_ms();
             let paths = seasalt::paths::required_paths(&cwd, &cmd).join("\0");
             let id = seasalt::db::record_history(
-                &conn, &cwd, &cmd, started_at, &session, &paths, "bash",
+                &conn, &cwd, &cmd, started_at, &session, &paths, &shell,
             )?;
             if let Some(max) = history_max() {
                 seasalt::db::trim_history(&conn, max)?;
@@ -153,7 +160,10 @@ fn run(cli: Cli) -> Result<()> {
                 let cmd = escape_cmd(&e.cmd);
                 if tsv {
                     let code = e.exit_code.map(|c| c.to_string()).unwrap_or_default();
-                    println!("{}\t{}\t{}\t{}\t{}", e.id, e.cwd, cmd, code, e.started_at);
+                    println!(
+                        "{}\t{}\t{}\t{}\t{}\t{}",
+                        e.id, e.cwd, cmd, code, e.started_at, e.shell
+                    );
                 } else {
                     println!("{}\t{}", e.id, cmd);
                 }
