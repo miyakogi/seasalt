@@ -198,6 +198,9 @@ seasalt clear
 
 seasalt init bash
     Print the bash integration snippet.
+
+seasalt init zsh
+    Print the zsh integration snippet.
 ```
 
 Failures are silent: `record`, `exit`, and `suggest` never write to

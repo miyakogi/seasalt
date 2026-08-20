@@ -1,5 +1,5 @@
 {
-  description = "seasalt - fish-style autosuggestion and per-directory history for bash";
+  description = "seasalt - fish-style autosuggestion and per-directory history for bash and zsh";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -19,7 +19,7 @@
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
           meta = {
-            description = "fish-style inline autosuggestion and per-directory history for bash";
+            description = "fish-style inline autosuggestion and per-directory history for bash and zsh";
             mainProgram = "seasalt";
             license = [ pkgs.lib.licenses.mit pkgs.lib.licenses.asl20 ];
           };
