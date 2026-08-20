@@ -110,7 +110,7 @@ Add seasalt as a flake input and install the binary through
 ```
 
 Pin a release tag for stability: `seasalt.url =
-"github:miyakogi/seasalt/v0.2.0";`. After installing, add
+"github:miyakogi/seasalt/v0.2.1";`. After installing, add
 `eval "$(seasalt init bash)"` to `~/.bashrc` as usual (see
 [Setup](#setup)).
 

@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.2.1] - 2026-08-21
 
 - zsh: keep seasalt first in `ZSH_AUTOSUGGEST_STRATEGY` on each prompt so
   its per-directory suggestions win over tools that later prepend their own
