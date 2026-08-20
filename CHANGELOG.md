@@ -11,6 +11,7 @@ All notable changes to this project are documented in this file.
 - Normalize trailing slashes in `suggest` so `/proj/sub/` matches history for `/proj/sub`
 - Speed up `delete` for multiple ids by batching into a single statement
 - Harden `delete` for 1000+ ids by chunking SQLite variables
+- Normalize trailing slashes in `search` so `--cwd /proj/sub/` matches `/proj/sub`
 - Fix `required_paths` to handle escaped quotes inside quoted arguments
 - Replace hand-written shell quoting in `paths` with `shlex` for POSIX correctness
 

@@ -749,3 +749,42 @@ fn init_unsupported_shell_fails() {
     let out = bin().args(["init", "fish"]).output().unwrap();
     assert!(!out.status.success());
 }
+
+#[test]
+fn search_with_trailing_slash_cwd() {
+    let dir = temp_data_dir();
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args([
+            "record",
+            "--cwd",
+            "/proj/sub",
+            "--session",
+            "s1",
+            "--",
+            "echo hello",
+        ])
+        .status()
+        .unwrap();
+    // Search with trailing slash should still find it
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--cwd", "/proj/sub/", "hello"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap().trim(),
+        "1\techo hello"
+    );
+    // --cwd via PWD with trailing slash (default_cwd path)
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .env("PWD", "/proj/sub/")
+        .args(["search", "hello"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap().trim(),
+        "1\techo hello"
+    );
+}

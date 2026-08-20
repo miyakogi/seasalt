@@ -160,7 +160,14 @@ fn run(cli: Cli) -> Result<()> {
                 None
             } else {
                 match cwd {
-                    Some(dir) => Some(dir),
+                    Some(dir) => {
+                        let t = dir.trim_end_matches('/');
+                        Some(if t.is_empty() {
+                            "/".to_string()
+                        } else {
+                            t.to_string()
+                        })
+                    }
                     None => seasalt::search::default_cwd(),
                 }
             };

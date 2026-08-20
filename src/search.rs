@@ -8,13 +8,23 @@ use crate::db::HistoryEntry;
 /// physical current directory. None when neither is available (global
 /// search).
 pub fn default_cwd() -> Option<String> {
+    let normalize = |s: String| {
+        let t = s.trim_end_matches('/').to_string();
+        if t.is_empty() {
+            "/".to_string()
+        } else {
+            t
+        }
+    };
     std::env::var("PWD")
         .ok()
         .filter(|p| !p.is_empty() && p.starts_with('/'))
+        .map(normalize)
         .or_else(|| {
             std::env::current_dir()
                 .ok()
                 .map(|p| p.to_string_lossy().into_owned())
+                .map(normalize)
         })
 }
 
