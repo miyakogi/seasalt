@@ -8,6 +8,9 @@ Single Rust binary + a bash snippet compiled into it. SQLite (WAL) at
 
 - Pre-commit gate, in this order:
   `cargo fmt && cargo check && cargo clippy && cargo test`
+- If `flake.nix` changed, verify it parses first:
+  `nix-instantiate --parse flake.nix` (fast, no fetch) and, when available,
+  confirm with `nix flake show`.
 - Shell integration test — NOT run by `cargo test`, always run it too:
   `cargo build --release && bash tests/bash/smoke.sh target/release/seasalt`
 - Performance benchmarks — NOT run by `cargo test`: `cargo bench`
