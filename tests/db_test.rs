@@ -323,7 +323,7 @@ fn writers_wait_for_busy_database() {
     let handle = std::thread::spawn(move || {
         blocker.execute_batch("BEGIN IMMEDIATE").unwrap();
         tx.send(()).unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(150));
+        std::thread::sleep(std::time::Duration::from_millis(100));
         blocker.execute_batch("COMMIT").unwrap();
     });
     rx.recv().unwrap();
