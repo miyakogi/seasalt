@@ -350,9 +350,8 @@ fn open_sets_bounded_busy_timeout() {
     let timeout: i64 = conn
         .query_row("SELECT * FROM pragma_busy_timeout", [], |row| row.get(0))
         .unwrap();
-    // rusqlite 0.37 installs a 5000ms default at open; db::open must bound it
-    // explicitly so a stuck writer cannot stall a shell hook for seconds.
-    assert_eq!(timeout, 300);
+    // 200ms suggest budget内に収めるため 150ms に短縮
+    assert_eq!(timeout, 150);
 
     let _ = std::fs::remove_dir_all(&dir);
 }

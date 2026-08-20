@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+- Improve suggestion responsiveness under DB contention by lowering `busy_timeout` to 150ms (inside the 200ms suggest budget)
+
 ## [0.2.1] - 2026-08-21
 
 - zsh: keep seasalt first in `ZSH_AUTOSUGGEST_STRATEGY` on each prompt so

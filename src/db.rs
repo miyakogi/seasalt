@@ -61,9 +61,11 @@ pub fn open(path: &Path) -> Result<Connection> {
         }
         conn.pragma_update(None, "journal_mode", "WAL")?;
     }
-    // Bound the wait for other shells' writers to 300ms; rusqlite's default
+    // Bound the wait for other shells' writers to 150ms; rusqlite's default
     // (5000ms) could stall a shell hook behind a stuck writer for seconds.
-    conn.busy_timeout(Duration::from_millis(300))?;
+    // 150ms stays comfortably inside the 200ms suggest budget so a slow
+    // writer never pushes a keystroke past the UI deadline.
+    conn.busy_timeout(Duration::from_millis(150))?;
     init(&conn)?;
     Ok(conn)
 }
