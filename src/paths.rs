@@ -11,7 +11,7 @@ const OPERATORS: &[&str] = &[
 /// so arguments like `echo hello` or `git push` always keep the
 /// candidate visible.
 pub fn required_paths(cwd: &str, cmd: &str) -> Vec<String> {
-    let tokens = tokenize(cmd);
+    let tokens = shlex::split(cmd).unwrap_or_default();
     let mut out = Vec::new();
     for (i, tok) in tokens.iter().enumerate() {
         if i == 0 {
@@ -23,12 +23,12 @@ pub fn required_paths(cwd: &str, cmd: &str) -> Vec<String> {
         if tok.contains("$(") || tok.contains('`') {
             continue; // command substitutions are not expanded
         }
-        let path = unquote(tok);
-        if path.is_empty() || matches!(path.as_str(), "." | ".." | "./" | "../") {
+        let path = tok.as_str();
+        if path.is_empty() || matches!(path, "." | ".." | "./" | "../") {
             continue;
         }
-        if resolve(cwd, &path).exists() {
-            out.push(path);
+        if resolve(cwd, path).exists() {
+            out.push(path.to_string());
         }
     }
     out
@@ -54,73 +54,4 @@ fn resolve(cwd: &str, path: &str) -> PathBuf {
 
 fn is_operator(tok: &str) -> bool {
     OPERATORS.contains(&tok)
-}
-
-/// Removes the surrounding matching quotes and unescapes the quote
-/// character and backslash inside.
-fn unquote(tok: &str) -> String {
-    if tok.len() >= 2 {
-        let first = tok.chars().next().unwrap();
-        let last = tok.chars().last().unwrap();
-        if (first == '"' || first == '\'') && first == last {
-            let inner = &tok[1..tok.len() - 1];
-            let mut out = String::with_capacity(inner.len());
-            let mut chars = inner.chars().peekable();
-            while let Some(c) = chars.next() {
-                if c == '\\' {
-                    if let Some(&next) = chars.peek() {
-                        if next == first || next == '\\' {
-                            out.push(next);
-                            chars.next();
-                            continue;
-                        }
-                    }
-                }
-                out.push(c);
-            }
-            return out;
-        }
-    }
-    tok.to_string()
-}
-
-/// Tokenizes by whitespace, honoring quotes and backslashes. A
-/// backslash escapes the next character (the backslash itself is dropped).
-fn tokenize(cmd: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut cur = String::new();
-    let mut quote: Option<char> = None;
-    let mut escaped = false;
-    for c in cmd.chars() {
-        if escaped {
-            cur.push(c);
-            escaped = false;
-            continue;
-        }
-        match quote {
-            Some(q) => {
-                cur.push(c);
-                if c == q {
-                    quote = None;
-                }
-            }
-            None => match c {
-                '\\' => escaped = true,
-                '\'' | '"' => {
-                    quote = Some(c);
-                    cur.push(c);
-                }
-                c if c.is_whitespace() => {
-                    if !cur.is_empty() {
-                        out.push(std::mem::take(&mut cur));
-                    }
-                }
-                _ => cur.push(c),
-            },
-        }
-    }
-    if !cur.is_empty() {
-        out.push(cur);
-    }
-    out
 }

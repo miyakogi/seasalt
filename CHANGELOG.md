@@ -11,6 +11,7 @@ All notable changes to this project are documented in this file.
 - Normalize trailing slashes in `suggest` so `/proj/sub/` matches history for `/proj/sub`
 - Speed up `delete` for multiple ids by batching into a single statement
 - Fix `required_paths` to handle escaped quotes inside quoted arguments
+- Replace hand-written shell quoting in `paths` with `shlex` for POSIX correctness
 
 ## [0.2.1] - 2026-08-21
 

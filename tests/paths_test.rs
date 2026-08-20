@@ -148,10 +148,9 @@ fn handles_escaped_quotes_inside_quotes() {
 fn handles_escaped_single_quote() {
     let dir = temp_dir();
     let cwd = dir.to_str().unwrap();
-    // Single-quoted arg with escaped single quote (shell would be 'a'\''b' but we test simple)
-    // Our tokenizer treats backslash as escape even inside single quotes for simplicity
+    // File with single quote, referenced via double quotes (POSIX correct)
     std::fs::write(dir.join("a'b.txt"), "x").unwrap();
-    let cmd = "nvim 'a\\'b.txt'";
+    let cmd = "nvim \"a'b.txt\"";
     assert_eq!(paths::required_paths(cwd, cmd), vec!["a'b.txt".to_string()]);
     let _ = std::fs::remove_dir_all(&dir);
 }
