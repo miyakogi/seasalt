@@ -195,10 +195,13 @@ pub fn update_exit_code(conn: &Connection, id: i64, code: i64) -> Result<()> {
 /// Deletes history rows by id. Nonexistent ids are silently ignored
 /// (used to remove rows that accidentally recorded secrets).
 pub fn delete_by_ids(conn: &Connection, ids: &[i64]) -> Result<()> {
-    let mut stmt = conn.prepare("DELETE FROM history WHERE id = ?1")?;
-    for id in ids {
-        stmt.execute(rusqlite::params![id])?;
+    if ids.is_empty() {
+        return Ok(());
     }
+    let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let sql = format!("DELETE FROM history WHERE id IN ({placeholders})");
+    let mut stmt = conn.prepare(&sql)?;
+    stmt.execute(rusqlite::params_from_iter(ids))?;
     Ok(())
 }
 

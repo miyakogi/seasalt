@@ -676,3 +676,28 @@ fn trim_history_strict_with_tied_timestamps() {
         .unwrap();
     assert_eq!(max_id - min_id, 9);
 }
+
+#[test]
+fn delete_by_ids_large_batch() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    let mut ids = Vec::new();
+    for i in 0..100 {
+        let id = db::record_history(&conn, "/a", &format!("cmd {i}"), i as i64, "s", "", "bash")
+            .unwrap();
+        ids.push(id);
+    }
+    // Delete even ids
+    let even: Vec<i64> = ids.iter().copied().filter(|x| x % 2 == 0).collect();
+    db::delete_by_ids(&conn, &even).unwrap();
+    let count: i64 = conn
+        .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 50);
+    // Nonexistent ids still ignored
+    db::delete_by_ids(&conn, &[9999, 10000]).unwrap();
+    let count: i64 = conn
+        .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 50);
+}
