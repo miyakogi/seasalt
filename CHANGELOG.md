@@ -8,6 +8,7 @@ All notable changes to this project are documented in this file.
 - Fix `trim_history` to strictly keep `SEASALT_HISTORY_MAX` entries even when many rows share the same timestamp (previously ties at the boundary survived)
 - Fix zsh hook registration to avoid double-registration when `add-zsh-hook` is available
 - Document `search` wildcards in `--help` (SQL LIKE: `%` and `_` are wildcards)
+- Normalize trailing slashes in `suggest` so `/proj/sub/` matches history for `/proj/sub`
 
 ## [0.2.1] - 2026-08-21
 

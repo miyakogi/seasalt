@@ -448,3 +448,40 @@ fn mid_query_interrupt_is_swallowed() {
         "query should succeed without interrupt"
     );
 }
+
+#[test]
+fn ancestors_normalizes_trailing_slash() {
+    assert_eq!(suggest::ancestors("/a/b/"), vec!["/a".to_string()]);
+    assert_eq!(suggest::ancestors("/a/b//"), vec!["/a".to_string()]);
+    assert_eq!(
+        suggest::ancestors("/a/b/c/"),
+        vec!["/a/b".to_string(), "/a".to_string()]
+    );
+}
+
+#[test]
+fn ancestors_normalized_cwd_matches_parent_scope() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    // Record with normalized cwd "/proj"
+    db::record_history(&conn, "/proj", "cargo check", 1000, "s", "", "bash").unwrap();
+    // Suggest from "/proj/sub/" (trailing slash) should find parent "/proj"
+    let got = suggest::suggest(&conn, "/proj/sub/", "cargo")
+        .unwrap()
+        .unwrap();
+    assert_eq!(got, "cargo check");
+}
+
+#[test]
+fn exact_cwd_with_trailing_slash_matches() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    db::record_history(&conn, "/proj/sub", "cargo build", 1000, "s", "", "bash").unwrap();
+    db::record_history(&conn, "/proj", "cargo check", 999, "s", "", "bash").unwrap();
+    // Suggest from "/proj/sub/" should still find the exact cwd entry (normalized),
+    // not fall back to parent "/proj"
+    let got = suggest::suggest(&conn, "/proj/sub/", "cargo")
+        .unwrap()
+        .unwrap();
+    assert_eq!(got, "cargo build");
+}

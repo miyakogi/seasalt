@@ -114,10 +114,18 @@ fn run(cli: Cli) -> Result<()> {
             if cmd.chars().next().is_some_and(char::is_whitespace) {
                 return Ok(());
             }
+            let cwd_norm = {
+                let t = cwd.trim_end_matches('/');
+                if t.is_empty() {
+                    "/".to_string()
+                } else {
+                    t.to_string()
+                }
+            };
             let started_at = now_ms();
-            let paths = seasalt::paths::required_paths(&cwd, &cmd).join("\0");
+            let paths = seasalt::paths::required_paths(&cwd_norm, &cmd).join("\0");
             let id = seasalt::db::record_history(
-                &conn, &cwd, &cmd, started_at, &session, &paths, &shell,
+                &conn, &cwd_norm, &cmd, started_at, &session, &paths, &shell,
             )?;
             if let Some(max) = history_max() {
                 seasalt::db::trim_history(&conn, max)?;

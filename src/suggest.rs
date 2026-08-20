@@ -67,18 +67,27 @@ fn search(
     if line.trim().is_empty() || expired(deadline) {
         return Ok(None);
     }
+    // Normalize trailing slashes so "/proj/sub/" behaves like "/proj/sub"
+    let cwd_norm = {
+        let t = cwd.trim_end_matches('/');
+        if t.is_empty() {
+            "/"
+        } else {
+            t
+        }
+    };
     // Scope 1: exact cwd match
-    match search_scope(conn, cwd, line, Some(cwd))? {
+    match search_scope(conn, cwd_norm, line, Some(cwd_norm))? {
         Outcome::Suggest(cmd) => return Ok(Some(cmd)),
         Outcome::Identical => return Ok(None),
         Outcome::NoMatch => {}
     }
     // Scope 2: parent directories (nearest first)
-    for anc in ancestors(cwd) {
+    for anc in ancestors(cwd_norm) {
         if expired(deadline) {
             return Ok(None);
         }
-        match search_scope(conn, cwd, line, Some(&anc))? {
+        match search_scope(conn, cwd_norm, line, Some(&anc))? {
             Outcome::Suggest(cmd) => return Ok(Some(cmd)),
             Outcome::Identical => return Ok(None),
             Outcome::NoMatch => {}
@@ -88,16 +97,23 @@ fn search(
     if expired(deadline) {
         return Ok(None);
     }
-    match search_scope(conn, cwd, line, None)? {
+    match search_scope(conn, cwd_norm, line, None)? {
         Outcome::Suggest(cmd) => Ok(Some(cmd)),
         Outcome::Identical | Outcome::NoMatch => Ok(None),
     }
 }
 
-/// Lists the parent directories in order of closeness (root itself is not included)
+/// Lists the parent directories in order of closeness (root itself is not included).
+/// Trailing slashes are normalized so "/a/b/" and "/a/b//" behave like "/a/b".
 pub fn ancestors(cwd: &str) -> Vec<String> {
+    let normalized = cwd.trim_end_matches('/');
+    let normalized = if normalized.is_empty() {
+        "/"
+    } else {
+        normalized
+    };
     let mut out = Vec::new();
-    let mut cur = std::path::Path::new(cwd);
+    let mut cur = std::path::Path::new(normalized);
     while let Some(parent) = cur.parent() {
         let s = parent.to_string_lossy();
         if s.is_empty() || s == "/" {
