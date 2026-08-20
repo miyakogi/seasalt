@@ -56,13 +56,29 @@ fn is_operator(tok: &str) -> bool {
     OPERATORS.contains(&tok)
 }
 
-/// Removes the surrounding matching quotes
+/// Removes the surrounding matching quotes and unescapes the quote
+/// character and backslash inside.
 fn unquote(tok: &str) -> String {
     if tok.len() >= 2 {
         let first = tok.chars().next().unwrap();
         let last = tok.chars().last().unwrap();
         if (first == '"' || first == '\'') && first == last {
-            return tok[1..tok.len() - 1].to_string();
+            let inner = &tok[1..tok.len() - 1];
+            let mut out = String::with_capacity(inner.len());
+            let mut chars = inner.chars().peekable();
+            while let Some(c) = chars.next() {
+                if c == '\\' {
+                    if let Some(&next) = chars.peek() {
+                        if next == first || next == '\\' {
+                            out.push(next);
+                            chars.next();
+                            continue;
+                        }
+                    }
+                }
+                out.push(c);
+            }
+            return out;
         }
     }
     tok.to_string()

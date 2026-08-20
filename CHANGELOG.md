@@ -10,6 +10,7 @@ All notable changes to this project are documented in this file.
 - Document `search` wildcards in `--help` (SQL LIKE: `%` and `_` are wildcards)
 - Normalize trailing slashes in `suggest` so `/proj/sub/` matches history for `/proj/sub`
 - Speed up `delete` for multiple ids by batching into a single statement
+- Fix `required_paths` to handle escaped quotes inside quoted arguments
 
 ## [0.2.1] - 2026-08-21
 

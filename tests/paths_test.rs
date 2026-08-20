@@ -126,3 +126,32 @@ fn valid_multiple_paths_all_must_exist() {
     assert!(!paths::valid(cwd, "a.txt\0b.txt"));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn handles_escaped_quotes_inside_quotes() {
+    let dir = temp_dir();
+    // Create a file with a quote in its name (unlikely but valid on Unix)
+    let name = "a\"b.txt";
+    std::fs::write(dir.join(name), "x").unwrap();
+    let cwd = dir.to_str().unwrap();
+
+    // Double-quoted arg containing an escaped double quote
+    let cmd = format!("nvim \"{}\"", "a\\\"b.txt");
+    // tokenize should keep the escaped quote, unquote should strip outer quotes
+    // and leave a"b.txt as the path
+    assert_eq!(paths::required_paths(cwd, &cmd), vec![name.to_string()]);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn handles_escaped_single_quote() {
+    let dir = temp_dir();
+    let cwd = dir.to_str().unwrap();
+    // Single-quoted arg with escaped single quote (shell would be 'a'\''b' but we test simple)
+    // Our tokenizer treats backslash as escape even inside single quotes for simplicity
+    std::fs::write(dir.join("a'b.txt"), "x").unwrap();
+    let cmd = "nvim 'a\\'b.txt'";
+    assert_eq!(paths::required_paths(cwd, cmd), vec!["a'b.txt".to_string()]);
+    let _ = std::fs::remove_dir_all(&dir);
+}
