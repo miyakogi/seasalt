@@ -198,10 +198,12 @@ pub fn delete_by_ids(conn: &Connection, ids: &[i64]) -> Result<()> {
     if ids.is_empty() {
         return Ok(());
     }
-    let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-    let sql = format!("DELETE FROM history WHERE id IN ({placeholders})");
-    let mut stmt = conn.prepare(&sql)?;
-    stmt.execute(rusqlite::params_from_iter(ids))?;
+    for chunk in ids.chunks(900) {
+        let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!("DELETE FROM history WHERE id IN ({placeholders})");
+        let mut stmt = conn.prepare(&sql)?;
+        stmt.execute(rusqlite::params_from_iter(chunk))?;
+    }
     Ok(())
 }
 

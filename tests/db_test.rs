@@ -701,3 +701,21 @@ fn delete_by_ids_large_batch() {
         .unwrap();
     assert_eq!(count, 50);
 }
+
+#[test]
+fn delete_by_ids_over_sqlite_limit() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    let mut ids = Vec::new();
+    for i in 0..1200 {
+        let id = db::record_history(&conn, "/a", &format!("cmd {i}"), i as i64, "s", "", "bash")
+            .unwrap();
+        ids.push(id);
+    }
+    // 1200 > 999 (default SQLite max variables) — must not fail
+    db::delete_by_ids(&conn, &ids).unwrap();
+    let count: i64 = conn
+        .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 0);
+}
