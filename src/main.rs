@@ -65,7 +65,7 @@ enum Command {
     },
     /// Delete all history entries and reclaim the file space (VACUUM)
     Clear,
-    /// Emit shell integration code (bash)
+    /// Emit shell integration code (bash, zsh)
     Init { shell: String },
 }
 
@@ -179,6 +179,7 @@ fn run(cli: Cli) -> Result<()> {
         }
         Command::Init { shell } => match shell.as_str() {
             "bash" => print!("{}", seasalt::integration::bash_init_script()),
+            "zsh" => print!("{}", seasalt::integration::zsh_init_script()),
             other => anyhow::bail!("unsupported shell: {other}"),
         },
     }

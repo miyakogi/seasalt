@@ -121,11 +121,11 @@ fire_idle_task "${{BASHER_IDLE_TASKS[1]}}"
 #[test]
 fn init_bash_rejects_unknown_shell() {
     let out = Command::new(env!("CARGO_BIN_EXE_seasalt"))
-        .args(["init", "zsh"])
+        .args(["init", "fish"])
         .output()
         .unwrap();
     assert!(!out.status.success());
     // Interactive commands report errors to stderr
     let err = String::from_utf8_lossy(&out.stderr);
-    assert!(err.contains("unsupported shell: zsh"), "stderr: {err}");
+    assert!(err.contains("unsupported shell: fish"), "stderr: {err}");
 }

@@ -733,3 +733,19 @@ fn record_shell_default_bash_and_tsv_sixth_column() {
     assert!(lines.iter().any(|l| l.ends_with("bash")), "got: {text}");
     assert!(lines.iter().any(|l| l.ends_with("zsh")), "got: {text}");
 }
+
+#[test]
+fn init_zsh_emits_snippet() {
+    let out = bin().args(["init", "zsh"]).output().unwrap();
+    assert!(out.status.success());
+    let text = String::from_utf8(out.stdout).unwrap();
+    assert!(text.contains("_zsh_autosuggest_strategy_seasalt"));
+    assert!(text.contains("--shell zsh"));
+    assert!(text.contains("precmd_functions"));
+}
+
+#[test]
+fn init_unsupported_shell_fails() {
+    let out = bin().args(["init", "fish"]).output().unwrap();
+    assert!(!out.status.success());
+}
