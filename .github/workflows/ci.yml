@@ -16,8 +16,8 @@ jobs:
       - uses: cachix/install-nix-action@v27
       - name: Pre-commit gate
         run: nix develop -c bash -c 'cargo fmt --check && cargo check --all-targets && cargo clippy --all-targets -- -D warnings && cargo test'
-      - name: Shell integration smoke test
-        run: nix develop -c bash -c 'cargo build --release && bash tests/bash/smoke.sh target/release/seasalt'
+      - name: Shell integration smoke tests (bash, zsh)
+        run: nix develop -c bash -c 'cargo build --release && bash tests/bash/smoke.sh target/release/seasalt && bash tests/zsh/smoke.sh target/release/seasalt'
 
   # Verifies the flake package itself builds (a separate path from
   # building with cargo directly).
