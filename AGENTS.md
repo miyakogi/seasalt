@@ -71,4 +71,4 @@ Single Rust binary + a bash snippet compiled into it. SQLite (WAL) at
 - Language conventions: comments in src/ and tests/ are English,
   README English, design spec Japanese.
 - Features follow: brainstorming → spec → plan → subagent-driven
-  implementation (docs/internal/; subagent defs in .opencode/agent/).
+  implementation (docs/internal/).
