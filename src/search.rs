@@ -27,13 +27,13 @@ pub fn search(
     let like = format!("%{}%", pattern);
     let mut stmt = if cwd.is_some() {
         conn.prepare(
-            "SELECT id, cwd, cmd, exit_code, started_at FROM history
+            "SELECT id, cwd, cmd, exit_code, started_at, shell FROM history
              WHERE cwd = ?1 AND cmd LIKE ?2
              ORDER BY started_at DESC, id DESC LIMIT ?3",
         )?
     } else {
         conn.prepare(
-            "SELECT id, cwd, cmd, exit_code, started_at FROM history
+            "SELECT id, cwd, cmd, exit_code, started_at, shell FROM history
              WHERE cmd LIKE ?1
              ORDER BY started_at DESC, id DESC LIMIT ?2",
         )?
@@ -57,5 +57,6 @@ fn map_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<HistoryEntry> {
         cmd: r.get(2)?,
         exit_code: r.get(3)?,
         started_at: r.get(4)?,
+        shell: r.get(5)?,
     })
 }

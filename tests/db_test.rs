@@ -10,7 +10,7 @@ fn insert_and_update_exit_code_roundtrip() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
 
-    let id = db::record_history(&conn, "/tmp/a", "echo hello", 1000, "s1", "").unwrap();
+    let id = db::record_history(&conn, "/tmp/a", "echo hello", 1000, "s1", "", "bash").unwrap();
     db::update_exit_code(&conn, id, 42).unwrap();
 
     let mut stmt = conn
@@ -50,8 +50,8 @@ fn init_is_idempotent() {
 fn insert_returns_increasing_ids() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    let a = db::record_history(&conn, "/x", "a", 1, "s", "").unwrap();
-    let b = db::record_history(&conn, "/x", "b", 2, "s", "").unwrap();
+    let a = db::record_history(&conn, "/x", "a", 1, "s", "", "bash").unwrap();
+    let b = db::record_history(&conn, "/x", "b", 2, "s", "", "bash").unwrap();
     assert!(b > a);
 }
 
@@ -85,6 +85,7 @@ fn insert_and_read_paths_roundtrip() {
         1000,
         "s1",
         "a.txt\0b.txt",
+        "bash",
     )
     .unwrap();
     let got: String = conn
@@ -123,7 +124,8 @@ fn init_adds_paths_column_to_old_schema() {
     assert!(cols.contains(&"paths".to_string()));
 
     // Insertion works after the migration
-    let id = db::record_history(&conn, "/tmp/a", "echo hello", 1000, "s1", "x.txt").unwrap();
+    let id =
+        db::record_history(&conn, "/tmp/a", "echo hello", 1000, "s1", "x.txt", "bash").unwrap();
     let got: String = conn
         .query_row("SELECT paths FROM history WHERE id = ?1", [id], |r| {
             r.get(0)
@@ -137,10 +139,12 @@ fn record_dedups_same_command_and_bumps_to_latest() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
 
-    let id1 = db::record_history(&conn, "/tmp/a", "nvim a.txt", 1000, "s1", "a.txt").unwrap();
-    let id2 = db::record_history(&conn, "/tmp/a", "nvim b.txt", 2000, "s1", "b.txt").unwrap();
+    let id1 =
+        db::record_history(&conn, "/tmp/a", "nvim a.txt", 1000, "s1", "a.txt", "bash").unwrap();
+    let id2 =
+        db::record_history(&conn, "/tmp/a", "nvim b.txt", 2000, "s1", "b.txt", "bash").unwrap();
     // Even non-consecutive duplicates with the same (cwd, cmd) refresh the existing row
-    let id3 = db::record_history(&conn, "/tmp/a", "nvim a.txt", 3000, "s2", "").unwrap();
+    let id3 = db::record_history(&conn, "/tmp/a", "nvim a.txt", 3000, "s2", "", "bash").unwrap();
 
     assert_eq!(id1, id3);
     assert_ne!(id1, id2);
@@ -169,8 +173,8 @@ fn record_dedups_same_command_and_bumps_to_latest() {
 fn record_does_not_dedup_across_directories() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    let a = db::record_history(&conn, "/dir/a", "ls", 1000, "s", "").unwrap();
-    let b = db::record_history(&conn, "/dir/b", "ls", 2000, "s", "").unwrap();
+    let a = db::record_history(&conn, "/dir/a", "ls", 1000, "s", "", "bash").unwrap();
+    let b = db::record_history(&conn, "/dir/b", "ls", 2000, "s", "", "bash").unwrap();
     assert_ne!(a, b);
     let count: i64 = conn
         .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
@@ -182,10 +186,10 @@ fn record_does_not_dedup_across_directories() {
 fn deduped_record_resets_exit_code_until_exit() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    let id = db::record_history(&conn, "/tmp/a", "make", 1000, "s1", "").unwrap();
+    let id = db::record_history(&conn, "/tmp/a", "make", 1000, "s1", "", "bash").unwrap();
     db::update_exit_code(&conn, id, 0).unwrap();
     // A re-run that dedups resets exit_code to undetermined
-    db::record_history(&conn, "/tmp/a", "make", 2000, "s2", "").unwrap();
+    db::record_history(&conn, "/tmp/a", "make", 2000, "s2", "", "bash").unwrap();
     let code: Option<i64> = conn
         .query_row("SELECT exit_code FROM history WHERE id = ?1", [id], |r| {
             r.get(0)
@@ -273,9 +277,9 @@ fn existing_data_dir_and_db_permissions_are_left_unchanged() {
 fn delete_by_ids_removes_only_requested_rows() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    let id1 = db::record_history(&conn, "/a", "one", 1000, "s", "").unwrap();
-    let id2 = db::record_history(&conn, "/a", "two", 2000, "s", "").unwrap();
-    let id3 = db::record_history(&conn, "/a", "three", 3000, "s", "").unwrap();
+    let id1 = db::record_history(&conn, "/a", "one", 1000, "s", "", "bash").unwrap();
+    let id2 = db::record_history(&conn, "/a", "two", 2000, "s", "", "bash").unwrap();
+    let id3 = db::record_history(&conn, "/a", "three", 3000, "s", "", "bash").unwrap();
 
     db::delete_by_ids(&conn, &[id1, id3]).unwrap();
 
@@ -293,7 +297,7 @@ fn delete_by_ids_removes_only_requested_rows() {
 fn delete_by_ids_ignores_nonexistent_ids() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    let id = db::record_history(&conn, "/a", "one", 1000, "s", "").unwrap();
+    let id = db::record_history(&conn, "/a", "one", 1000, "s", "", "bash").unwrap();
     // Nonexistent ids are not an error either
     db::delete_by_ids(&conn, &[id, 999]).unwrap();
     let count: i64 = conn
@@ -325,7 +329,7 @@ fn writers_wait_for_busy_database() {
     rx.recv().unwrap();
     // Starts while the other connection holds the write lock; the bounded busy
     // timeout must wait for the lock instead of failing with SQLITE_BUSY.
-    let id = db::record_history(&conn, "/x", "echo hi", 1000, "s", "").unwrap();
+    let id = db::record_history(&conn, "/x", "echo hi", 1000, "s", "", "bash").unwrap();
     handle.join().unwrap();
     assert!(id > 0);
     let _ = std::fs::remove_dir_all(&dir);
@@ -358,7 +362,16 @@ fn trim_history_keeps_newest_rows() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
     for i in 0..12 {
-        db::record_history(&conn, "/x", &format!("cmd {i}"), 1000 + i as i64, "s", "").unwrap();
+        db::record_history(
+            &conn,
+            "/x",
+            &format!("cmd {i}"),
+            1000 + i as i64,
+            "s",
+            "",
+            "bash",
+        )
+        .unwrap();
     }
     db::trim_history(&conn, 10).unwrap();
     let count: i64 = conn
@@ -383,7 +396,16 @@ fn trim_history_at_limit_deletes_nothing() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
     for i in 0..10 {
-        db::record_history(&conn, "/x", &format!("cmd {i}"), 1000 + i as i64, "s", "").unwrap();
+        db::record_history(
+            &conn,
+            "/x",
+            &format!("cmd {i}"),
+            1000 + i as i64,
+            "s",
+            "",
+            "bash",
+        )
+        .unwrap();
     }
     db::trim_history(&conn, 10).unwrap();
     let count: i64 = conn
@@ -397,7 +419,16 @@ fn trim_history_under_limit_deletes_nothing() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
     for i in 0..5 {
-        db::record_history(&conn, "/x", &format!("cmd {i}"), 1000 + i as i64, "s", "").unwrap();
+        db::record_history(
+            &conn,
+            "/x",
+            &format!("cmd {i}"),
+            1000 + i as i64,
+            "s",
+            "",
+            "bash",
+        )
+        .unwrap();
     }
     db::trim_history(&conn, 10).unwrap();
     let count: i64 = conn
@@ -411,11 +442,20 @@ fn trim_history_protects_refreshed_rows() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
     // "make" is the oldest row, then refreshed by a re-run (dedup)
-    db::record_history(&conn, "/x", "make", 1000, "s", "").unwrap();
+    db::record_history(&conn, "/x", "make", 1000, "s", "", "bash").unwrap();
     for i in 1..12 {
-        db::record_history(&conn, "/x", &format!("cmd {i}"), 1000 + i as i64, "s", "").unwrap();
+        db::record_history(
+            &conn,
+            "/x",
+            &format!("cmd {i}"),
+            1000 + i as i64,
+            "s",
+            "",
+            "bash",
+        )
+        .unwrap();
     }
-    db::record_history(&conn, "/x", "make", 9999, "s", "").unwrap();
+    db::record_history(&conn, "/x", "make", 9999, "s", "", "bash").unwrap();
     db::trim_history(&conn, 10).unwrap();
     let count: i64 = conn
         .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
@@ -436,7 +476,16 @@ fn clear_removes_all_rows() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
     for i in 0..5 {
-        db::record_history(&conn, "/x", &format!("cmd {i}"), 1000 + i as i64, "s", "").unwrap();
+        db::record_history(
+            &conn,
+            "/x",
+            &format!("cmd {i}"),
+            1000 + i as i64,
+            "s",
+            "",
+            "bash",
+        )
+        .unwrap();
     }
     db::clear(&conn).unwrap();
     let count: i64 = conn
@@ -466,7 +515,7 @@ fn init_records_schema_version() {
     let v: i64 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(v, 2);
+    assert_eq!(v, 3);
 }
 
 #[test]
@@ -524,4 +573,70 @@ fn init_dedupes_legacy_duplicates_and_adds_unique_index() {
         )
         .unwrap();
     assert_eq!(name, "idx_history_cwd_cmd_unique");
+}
+
+#[test]
+fn record_history_stores_shell() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    db::record_history(&conn, "/tmp/a", "echo hi", 1000, "s1", "", "zsh").unwrap();
+    let shell: String = conn
+        .query_row("SELECT shell FROM history WHERE id = 1", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(shell, "zsh");
+}
+
+#[test]
+fn record_history_on_conflict_updates_shell_keeps_same_id() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    let id1 = db::record_history(&conn, "/x", "echo hi", 1, "s1", "", "bash").unwrap();
+    let id2 = db::record_history(&conn, "/x", "echo hi", 2, "s2", "", "zsh").unwrap();
+    assert_eq!(id1, id2);
+    let (count, shell): (i64, String) = conn
+        .query_row("SELECT COUNT(*), MAX(shell) FROM history", [], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
+        .unwrap();
+    assert_eq!(count, 1);
+    assert_eq!(shell, "zsh");
+}
+
+#[test]
+fn migration_v3_adds_shell_column_defaulting_to_bash() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let dir = std::env::temp_dir().join(format!("seasalt-mig{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("history.sqlite3");
+    {
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE history (
+               id INTEGER PRIMARY KEY AUTOINCREMENT,
+               cwd TEXT NOT NULL,
+               cmd TEXT NOT NULL,
+               exit_code INTEGER,
+               started_at INTEGER NOT NULL,
+               session TEXT,
+               paths TEXT NOT NULL DEFAULT ''
+             );
+             CREATE INDEX idx_history_cwd ON history(cwd);
+             CREATE INDEX idx_history_cmd ON history(cmd);
+             CREATE INDEX idx_history_started_at ON history(started_at);",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO history (cwd, cmd, started_at) VALUES ('/a', 'echo hi', 1)",
+            [],
+        )
+        .unwrap();
+        conn.pragma_update(None, "user_version", 2).unwrap();
+    }
+    let conn = db::open(&path).unwrap();
+    let shell: String = conn
+        .query_row("SELECT shell FROM history WHERE id = 1", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(shell, "bash");
+    std::fs::remove_dir_all(&dir).unwrap();
 }

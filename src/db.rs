@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS history (
   exit_code INTEGER,
   started_at INTEGER NOT NULL,
   session TEXT,
-  paths TEXT NOT NULL DEFAULT ''
+  paths TEXT NOT NULL DEFAULT '',
+  shell TEXT NOT NULL DEFAULT 'bash'
 );
 CREATE INDEX IF NOT EXISTS idx_history_cwd ON history(cwd);
 CREATE INDEX IF NOT EXISTS idx_history_cmd ON history(cmd);
@@ -26,6 +27,7 @@ pub struct HistoryEntry {
     pub cmd: String,
     pub exit_code: Option<i64>,
     pub started_at: i64,
+    pub shell: String,
 }
 
 pub fn default_db_path() -> Result<PathBuf> {
@@ -115,6 +117,16 @@ fn migrate(conn: &Connection) -> Result<()> {
         )?;
         conn.pragma_update(None, "user_version", 2)?;
     }
+    if version < 3 {
+        // v2 -> v3: tag each record with the shell it came from. Existing
+        // rows (all recorded through bash so far) default to 'bash'.
+        if !has_column(conn, "shell")? {
+            conn.execute_batch(
+                "ALTER TABLE history ADD COLUMN shell TEXT NOT NULL DEFAULT 'bash'",
+            )?;
+        }
+        conn.pragma_update(None, "user_version", 3)?;
+    }
     Ok(())
 }
 
@@ -142,24 +154,27 @@ pub fn record_history(
     started_at: i64,
     session: &str,
     paths: &str,
+    shell: &str,
 ) -> Result<i64> {
     // Atomic upsert on (cwd, cmd): a re-run refreshes the existing row
-    // (started_at/session/paths updated, exit_code reset) instead of
+    // (started_at/session/paths/shell updated, exit_code reset) instead of
     // inserting a duplicate. The UNIQUE(cwd, cmd) index also removes the
-    // check-then-write race between concurrent shells.
+    // check-then-write race between concurrent shells. Dedup stays
+    // shell-independent; the shell column is an informational tag.
     //
     // Note: RETURNING id is unambiguous across SQLite versions and avoids
     // relying on last_insert_rowid() semantics on the ON CONFLICT / DO UPDATE path.
     let id: i64 = conn.query_row(
-        "INSERT INTO history (cwd, cmd, started_at, session, paths)
-         VALUES (?1, ?2, ?3, ?4, ?5)
+        "INSERT INTO history (cwd, cmd, started_at, session, paths, shell)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
          ON CONFLICT(cwd, cmd) DO UPDATE SET
            started_at = excluded.started_at,
            session = excluded.session,
            paths = excluded.paths,
+           shell = excluded.shell,
            exit_code = NULL
          RETURNING id",
-        rusqlite::params![cwd, cmd, started_at, session, paths],
+        rusqlite::params![cwd, cmd, started_at, session, paths, shell],
         |r| r.get(0),
     )?;
     Ok(id)

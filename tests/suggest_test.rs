@@ -13,16 +13,16 @@ fn temp_dir() -> std::path::PathBuf {
 
 fn recorded(conn: &Connection, cwd: &str, cmd: &str, started_at: i64) {
     let paths = paths::required_paths(cwd, cmd).join("\0");
-    db::record_history(conn, cwd, cmd, started_at, "s", &paths).unwrap();
+    db::record_history(conn, cwd, cmd, started_at, "s", &paths, "bash").unwrap();
 }
 
 fn seed(conn: &Connection) {
     // started_at is controlled explicitly to make the "latest" decision deterministic
-    db::record_history(conn, "/proj/sub", "cargo build", 5000, "s", "").unwrap();
-    db::record_history(conn, "/proj/sub", "cargo test", 4000, "s", "").unwrap();
-    db::record_history(conn, "/proj", "cargo check", 3000, "s", "").unwrap();
-    db::record_history(conn, "/other", "cargo doc", 2000, "s", "").unwrap();
-    db::record_history(conn, "/home", "ls -la", 6000, "s", "").unwrap();
+    db::record_history(conn, "/proj/sub", "cargo build", 5000, "s", "", "bash").unwrap();
+    db::record_history(conn, "/proj/sub", "cargo test", 4000, "s", "", "bash").unwrap();
+    db::record_history(conn, "/proj", "cargo check", 3000, "s", "", "bash").unwrap();
+    db::record_history(conn, "/other", "cargo doc", 2000, "s", "", "bash").unwrap();
+    db::record_history(conn, "/home", "ls -la", 6000, "s", "", "bash").unwrap();
 }
 
 #[test]
@@ -90,7 +90,7 @@ fn no_match_returns_none() {
 fn suggestion_never_equals_current_line() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    db::record_history(&conn, "/proj/sub", "cargo build", 5000, "s", "").unwrap();
+    db::record_history(&conn, "/proj/sub", "cargo build", 5000, "s", "", "bash").unwrap();
 
     // The same command just run and recorded is not suggested
     assert!(suggest::suggest(&conn, "/proj/sub", "cargo build")
@@ -102,7 +102,7 @@ fn suggestion_never_equals_current_line() {
 fn case_insensitive_match() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    db::record_history(&conn, "/proj/sub", "CARGO BUILD", 5000, "s", "").unwrap();
+    db::record_history(&conn, "/proj/sub", "CARGO BUILD", 5000, "s", "", "bash").unwrap();
 
     let got = suggest::suggest(&conn, "/proj/sub", "cargo")
         .unwrap()
@@ -158,7 +158,7 @@ fn falls_back_to_next_candidate() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
     // Even if the newest candidate references a deleted file, the next candidate is used
-    db::record_history(&conn, cwd, "nvim gone.txt", 2000, "s", "gone.txt").unwrap();
+    db::record_history(&conn, cwd, "nvim gone.txt", 2000, "s", "gone.txt", "bash").unwrap();
     recorded(&conn, cwd, "nvim live.txt", 1000);
 
     assert_eq!(
@@ -250,8 +250,8 @@ fn case_sensitive_match_is_preferred() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
     // An older exact-case candidate is preferred over a newer icase-only one (like fish)
-    db::record_history(&conn, "/proj/sub", "CARGO BUILD", 2000, "s", "").unwrap();
-    db::record_history(&conn, "/proj/sub", "cargo build", 1000, "s", "").unwrap();
+    db::record_history(&conn, "/proj/sub", "CARGO BUILD", 2000, "s", "", "bash").unwrap();
+    db::record_history(&conn, "/proj/sub", "cargo build", 1000, "s", "", "bash").unwrap();
     let got = suggest::suggest(&conn, "/proj/sub", "cargo")
         .unwrap()
         .unwrap();
@@ -262,7 +262,7 @@ fn case_sensitive_match_is_preferred() {
 fn case_insensitive_fallback_without_sensitive_match() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    db::record_history(&conn, "/proj/sub", "CARGO BUILD", 2000, "s", "").unwrap();
+    db::record_history(&conn, "/proj/sub", "CARGO BUILD", 2000, "s", "", "bash").unwrap();
     let got = suggest::suggest(&conn, "/proj/sub", "cargo")
         .unwrap()
         .unwrap();
@@ -273,8 +273,8 @@ fn case_insensitive_fallback_without_sensitive_match() {
 fn uppercase_needle_prefers_exact_case() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    db::record_history(&conn, "/proj/sub", "cargo build", 2000, "s", "").unwrap();
-    db::record_history(&conn, "/proj/sub", "Cargo check", 1000, "s", "").unwrap();
+    db::record_history(&conn, "/proj/sub", "cargo build", 2000, "s", "", "bash").unwrap();
+    db::record_history(&conn, "/proj/sub", "Cargo check", 1000, "s", "", "bash").unwrap();
     // Exact case is preferred even for a needle containing uppercase (like fish)
     let got = suggest::suggest(&conn, "/proj/sub", "Cargo")
         .unwrap()
@@ -286,8 +286,8 @@ fn uppercase_needle_prefers_exact_case() {
 fn cwd_icase_beats_parent_exact_case() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    db::record_history(&conn, "/proj/sub", "CARGO BUILD", 2000, "s", "").unwrap();
-    db::record_history(&conn, "/proj", "cargo check", 1000, "s", "").unwrap();
+    db::record_history(&conn, "/proj/sub", "CARGO BUILD", 2000, "s", "", "bash").unwrap();
+    db::record_history(&conn, "/proj", "cargo check", 1000, "s", "", "bash").unwrap();
     // Scope priority outranks case priority: the cwd's icase candidate wins
     let got = suggest::suggest(&conn, "/proj/sub", "cargo")
         .unwrap()
@@ -303,9 +303,9 @@ fn stale_sensitive_candidate_falls_back_to_icase() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
     // The exact-case candidate is stale (gone.txt does not exist)
-    db::record_history(&conn, cwd, "nvim gone.txt", 2000, "s", "gone.txt").unwrap();
+    db::record_history(&conn, cwd, "nvim gone.txt", 2000, "s", "gone.txt", "bash").unwrap();
     // The icase-only candidate is valid
-    db::record_history(&conn, cwd, "NVIM live.txt", 1000, "s", "live.txt").unwrap();
+    db::record_history(&conn, cwd, "NVIM live.txt", 1000, "s", "live.txt", "bash").unwrap();
 
     let got = suggest::suggest(&conn, cwd, "nvim").unwrap().unwrap();
     assert_eq!(got, "NVIM live.txt");
@@ -316,8 +316,8 @@ fn stale_sensitive_candidate_falls_back_to_icase() {
 fn exact_case_preferred_when_line_contains_glob_chars() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    db::record_history(&conn, "/x", "LS *.txt", 2000, "s", "").unwrap();
-    db::record_history(&conn, "/x", "ls *.txt", 1000, "s", "").unwrap();
+    db::record_history(&conn, "/x", "LS *.txt", 2000, "s", "", "bash").unwrap();
+    db::record_history(&conn, "/x", "ls *.txt", 1000, "s", "", "bash").unwrap();
     // Like fish, the exact-case match wins even though it is older;
     // the broken GLOB escape made the sensitive pass miss and the
     // newer icase candidate "LS *.txt" win instead.
@@ -329,8 +329,8 @@ fn exact_case_preferred_when_line_contains_glob_chars() {
 fn global_scope_prefers_exact_case() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    db::record_history(&conn, "/a", "Cargo build", 2000, "s", "").unwrap();
-    db::record_history(&conn, "/a", "cargo check", 1000, "s", "").unwrap();
+    db::record_history(&conn, "/a", "Cargo build", 2000, "s", "", "bash").unwrap();
+    db::record_history(&conn, "/a", "cargo check", 1000, "s", "", "bash").unwrap();
     // /nowhere has no cwd/parent match; the global scope prefers
     // the exact-case candidate even though it is older.
     let got = suggest::suggest(&conn, "/nowhere", "cargo")
@@ -345,7 +345,7 @@ fn like_escape_handles_underscore_in_icase_fallback() {
     db::init(&conn).unwrap();
     // Only a case-mismatched candidate exists: the sensitive GLOB pass
     // misses and the icase LIKE fallback must not treat `_` as a wildcard.
-    db::record_history(&conn, "/proj/sub", "LS _x.txt", 2000, "s", "").unwrap();
+    db::record_history(&conn, "/proj/sub", "LS _x.txt", 2000, "s", "", "bash").unwrap();
     let got = suggest::suggest(&conn, "/proj/sub", "ls _")
         .unwrap()
         .unwrap();
@@ -356,7 +356,7 @@ fn like_escape_handles_underscore_in_icase_fallback() {
 fn like_escape_handles_percent_in_icase_fallback() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    db::record_history(&conn, "/proj/sub", "PRINTF %s x", 2000, "s", "").unwrap();
+    db::record_history(&conn, "/proj/sub", "PRINTF %s x", 2000, "s", "", "bash").unwrap();
     let got = suggest::suggest(&conn, "/proj/sub", "printf %s")
         .unwrap()
         .unwrap();
@@ -367,7 +367,7 @@ fn like_escape_handles_percent_in_icase_fallback() {
 fn zero_budget_aborts_before_any_query() {
     let conn = Connection::open_in_memory().unwrap();
     db::init(&conn).unwrap();
-    db::record_history(&conn, "/proj/sub", "cargo build", 5000, "s", "").unwrap();
+    db::record_history(&conn, "/proj/sub", "cargo build", 5000, "s", "", "bash").unwrap();
 
     // An expired budget yields no suggestion (mid-query interrupts are
     // swallowed; the pre-query deadline check makes this deterministic).
