@@ -37,10 +37,13 @@ if [[ -n "$_seasalt_bin" ]]; then
   };
 
   autoload -Uz add-zsh-hook >/dev/null 2>&1;
-  add-zsh-hook preexec _seasalt_preexec >/dev/null 2>&1 || true;
-  add-zsh-hook precmd  _seasalt_precmd  >/dev/null 2>&1 || true;
-  preexec_functions=(_seasalt_preexec ${preexec_functions:#_seasalt_preexec});
-  precmd_functions=(_seasalt_precmd ${precmd_functions:#_seasalt_precmd});
+  if (( ${+functions[add-zsh-hook]} )); then
+    add-zsh-hook preexec _seasalt_preexec 2>/dev/null || preexec_functions=(_seasalt_preexec ${preexec_functions:#_seasalt_preexec});
+    add-zsh-hook precmd  _seasalt_precmd  2>/dev/null || precmd_functions=(_seasalt_precmd ${precmd_functions:#_seasalt_precmd});
+  else
+    preexec_functions=(_seasalt_preexec ${preexec_functions:#_seasalt_preexec});
+    precmd_functions=(_seasalt_precmd ${precmd_functions:#_seasalt_precmd});
+  fi;
 
   if (( ! ${+functions[_zsh_autosuggest_fetch_suggestion]} )); then
     print -r -- 'seasalt: zsh-autosuggestions not loaded; source it before eval "$(seasalt init zsh)" for inline suggestions.' >&2;
