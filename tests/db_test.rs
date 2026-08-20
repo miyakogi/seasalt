@@ -639,3 +639,40 @@ fn migration_v3_adds_shell_column_defaulting_to_bash() {
     assert_eq!(shell, "bash");
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn trim_history_strict_with_tied_timestamps() {
+    let conn = Connection::open_in_memory().unwrap();
+    db::init(&conn).unwrap();
+    // All rows share the same started_at, differing only by id.
+    // With the old `started_at < threshold` predicate, ties at the
+    // boundary survive and the table keeps >max rows.
+    for i in 0..12 {
+        db::record_history(
+            &conn,
+            "/x",
+            &format!("cmd {i}"),
+            1000, // same timestamp for all
+            "s",
+            "",
+            "bash",
+        )
+        .unwrap();
+    }
+    db::trim_history(&conn, 10).unwrap();
+    let count: i64 = conn
+        .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(
+        count, 10,
+        "expected strict trim to 10, ties must not survive"
+    );
+    // The 10 newest by id must remain (ids are monotonic)
+    let min_id: i64 = conn
+        .query_row("SELECT min(id) FROM history", [], |r| r.get(0))
+        .unwrap();
+    let max_id: i64 = conn
+        .query_row("SELECT max(id) FROM history", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(max_id - min_id, 9);
+}

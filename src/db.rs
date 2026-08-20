@@ -203,13 +203,16 @@ pub fn delete_by_ids(conn: &Connection, ids: &[i64]) -> Result<()> {
 }
 
 /// Deletes history rows older than the newest `max` rows (by
-/// started_at, newest first). When the table has fewer than `max`
-/// rows, the subquery yields NULL and nothing is deleted. Callers
-/// must not pass `max = 0` (unlimited is handled before calling).
+/// started_at, id). Strictly keeps `max` rows even when many rows
+/// share the same started_at — the old `started_at < threshold`
+/// predicate kept ties at the boundary. When the table has fewer
+/// than `max` rows, the subquery yields no row and nothing is
+/// deleted. Callers must not pass `max = 0` (unlimited is handled
+/// before calling).
 pub fn trim_history(conn: &Connection, max: usize) -> Result<()> {
     conn.execute(
-        "DELETE FROM history WHERE started_at < (
-           SELECT started_at FROM history ORDER BY started_at DESC, id DESC LIMIT 1 OFFSET ?1
+        "DELETE FROM history WHERE (started_at, id) < (
+           SELECT started_at, id FROM history ORDER BY started_at DESC, id DESC LIMIT 1 OFFSET ?1
          )",
         rusqlite::params![max as i64 - 1],
     )?;
