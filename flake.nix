@@ -32,6 +32,7 @@
             pkgs.rustfmt
             pkgs.clippy
             pkgs.rust-analyzer
+            pkgs.zsh
           ];
         };
       });
