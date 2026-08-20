@@ -7,6 +7,7 @@ All notable changes to this project are documented in this file.
 - Improve suggestion responsiveness under DB contention by lowering `busy_timeout` to 150ms (inside the 200ms suggest budget)
 - Fix `trim_history` to strictly keep `SEASALT_HISTORY_MAX` entries even when many rows share the same timestamp (previously ties at the boundary survived)
 - Fix zsh hook registration to avoid double-registration when `add-zsh-hook` is available
+- Document `search` wildcards in `--help` (SQL LIKE: `%` and `_` are wildcards)
 
 ## [0.2.1] - 2026-08-21
 

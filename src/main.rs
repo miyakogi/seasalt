@@ -56,6 +56,7 @@ enum Command {
         limit: usize,
         #[arg(long)]
         tsv: bool,
+        /// Substring to search (SQL LIKE semantics: % and _ are wildcards)
         pattern: String,
     },
     /// Delete history entries by id (e.g. a command that accidentally recorded a secret)
