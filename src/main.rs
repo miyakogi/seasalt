@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "seasalt",
     version,
-    about = "fish-style autosuggestion and per-directory history for bash and zsh"
+    about = "per-directory history and command suggestions for bash and zsh"
 )]
 struct Cli {
     #[command(subcommand)]

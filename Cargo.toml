@@ -2,7 +2,7 @@
 name = "seasalt"
 version = "0.1.2"
 edition = "2021"
-description = "fish-style inline autosuggestion and per-directory history for bash"
+description = "per-directory shell history and command suggestions for bash and zsh"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/miyakogi/seasalt"
 

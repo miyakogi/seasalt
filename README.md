@@ -1,20 +1,22 @@
 # seasalt
 
-Fish-style inline autosuggestion and per-directory history for bash and zsh.
+Per-directory command history that powers fish-style inline autosuggestions
+in bash and zsh.
 
 `seasalt` suggests the rest of your command while you type
-([ble.sh](https://github.com/akinomyoga/ble.sh) displays it as gray
-ghost text; `→` accepts it), keeps history scoped to the directory you
-are working in, and exposes a small CLI to search and maintain that
-history. It is a single Rust binary plus a bash integration snippet, and
-it uses its own SQLite store — it does not touch the shell's history
-file.
+(the shell integration — [ble.sh](https://github.com/akinomyoga/ble.sh) or
+[zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions) —
+displays the suggestion as gray ghost text; `→` accepts it), keeps history
+scoped to the directory you are working in, and exposes a small CLI to
+search and maintain that history. It is a single Rust binary plus
+shell integration snippets, and it uses its own SQLite store —
+it does not touch the shell's history file.
 
 ## Features
 
-- **Inline autosuggestions** — while typing, the most likely completion
-  of the current line is shown in gray via ble.sh's auto-complete
-  mechanism.
+- **Inline autosuggestions** — seasalt suggests the most likely
+  completion of the current line; the shell integration (ble.sh for
+  bash, zsh-autosuggestions for zsh) renders it inline in gray.
 - **Per-directory history scoping** — suggestions prefer history from
   the current directory, then parent directories (nearest first), then
   fall back to global history. Within each scope, the latest matching
