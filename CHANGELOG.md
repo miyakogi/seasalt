@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+- zsh: keep seasalt first in `ZSH_AUTOSUGGEST_STRATEGY` on each prompt so
+  its per-directory suggestions win over tools that later prepend their own
+  strategy (e.g. atuin), which had meanwhile shadowed seasalt with global
+  suggestions. Other strategies are preserved as fallbacks.
+
 ## [0.2.0] - 2026-08-20
 
 - zsh support: `seasalt init zsh` installs preexec/precmd history hooks and a

@@ -149,9 +149,13 @@ and a [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions)
 strategy that produces the inline suggestions.
 
 **Requirements** — zsh >= 5.0.8 and the `zsh-autosuggestions` plugin.
-Source `zsh-autosuggestions` **before** the `seasalt init zsh` line (or
-place the `init zsh` line last in `.zshrc`) so that seasalt's
-`ZSH_AUTOSUGGEST_STRATEGY` is preserved.
+Source `zsh-autosuggestions` **before** the `seasalt init zsh` line so the
+custom strategy is available when zsh-autosuggestions is set up.
+
+seasalt keeps itself first in `ZSH_AUTOSUGGEST_STRATEGY`, so its
+per-directory suggestions take priority even when another tool (such as
+atuin) later prepends its own strategy. Other strategies remain as
+fallbacks, only running when seasalt has no match.
 
 Inline suggestions come from seasalt's custom zsh-autosuggestions
 strategy; if zsh-autosuggestions isn't loaded, only history recording
@@ -265,11 +269,14 @@ Set `SEASALT_HISTORY_MAX` to change the automatic history size limit
 - **atuin** — history search (`Ctrl-R`), sync, stats.
 - **seasalt** — inline autosuggestions and per-directory scoping.
 
-For inline suggestions, seasalt is the only source: the integration
+For inline suggestions, seasalt is the only source: the bash integration
 snippet removes the `atuin-history` and bash `history` auto-complete
 sources from `_ble_complete_auto_source` on the first idle, so inline
-suggestions come only from seasalt. atuin's own history search
-(`Ctrl-R`) is unaffected.
+suggestions come only from seasalt. On zsh, seasalt keeps itself first in
+`ZSH_AUTOSUGGEST_STRATEGY`, so its per-directory suggestions win even if
+atuin later prepends its own global strategy; atuin (and other strategy
+tools) remain as fallbacks only when seasalt has no match. atuin's own
+history search (`Ctrl-R`) is unaffected.
 atuin keeps its own history store and seasalt does not read or copy
 from it: commands recorded by atuin do not appear in seasalt's
 suggestions, and vice versa.

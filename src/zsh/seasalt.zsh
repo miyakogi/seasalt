@@ -26,6 +26,14 @@ if [[ -n "$_seasalt_bin" ]]; then
       "$_seasalt_bin" exit --last-id "$_seasalt_last_id" --code "$code" >/dev/null 2>&1;
       _seasalt_last_id=;
     fi;
+    # Keep seasalt as the first zsh-autosuggestions strategy so its
+    # per-directory suggestions win over tools that later prepend their
+    # own strategy to ZSH_AUTOSUGGEST_STRATEGY (e.g. atuin). Removes any
+    # duplicate seasalt entry and preserves the remaining strategies
+    # (history, atuin, ...) as fallbacks. Idempotent.
+    if (( ${#ZSH_AUTOSUGGEST_STRATEGY[@]} )); then
+      ZSH_AUTOSUGGEST_STRATEGY=(seasalt ${ZSH_AUTOSUGGEST_STRATEGY:#seasalt});
+    fi;
   };
 
   autoload -Uz add-zsh-hook >/dev/null 2>&1;
