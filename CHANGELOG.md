@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 - Treat an empty `SEASALT_DATA_DIR` as unset instead of failing on a nonexistent path
 - Harden `suggest` to stop scanning candidates once the 200ms budget has elapsed
+- Escape the `cwd` column in `search --tsv` output so directory names containing tabs or newlines stay on one line
 
 ## [0.2.2] - 2026-08-22
 

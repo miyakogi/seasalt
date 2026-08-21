@@ -178,7 +178,12 @@ fn run(cli: Cli) -> Result<()> {
                     let code = e.exit_code.map(|c| c.to_string()).unwrap_or_default();
                     println!(
                         "{}\t{}\t{}\t{}\t{}\t{}",
-                        e.id, e.cwd, cmd, code, e.started_at, e.shell
+                        e.id,
+                        escape_cmd(&e.cwd),
+                        cmd,
+                        code,
+                        e.started_at,
+                        e.shell
                     );
                 } else {
                     println!("{}\t{}", e.id, cmd);
