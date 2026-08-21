@@ -283,6 +283,9 @@ suggestions, and vice versa.
 
 ## Known limitations
 
+- Case-insensitive suggestion matching only folds ASCII case (SQLite's
+  `LIKE`/`GLOB`); non-ASCII case pairs such as `café`/`CAFÉ` are treated as
+  distinct.
 - Autosuggestions require ble.sh; without it only recording works (via
   bash-preexec) and a warning is printed on eval.
 - Interactive `Ctrl-R` search is intentionally out of scope: `seasalt`

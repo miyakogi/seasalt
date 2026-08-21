@@ -788,3 +788,35 @@ fn search_with_trailing_slash_cwd() {
         "1\techo hello"
     );
 }
+
+#[test]
+fn search_tsv_escapes_cwd() {
+    let dir = temp_data_dir();
+    let name = std::thread::current().name().unwrap_or("t").to_string();
+    // A directory whose name contains a tab (valid on Unix) breaks TSV columns
+    let cwd_dir =
+        std::env::temp_dir().join(format!("seasalt-tsv-cwd-{}-{}", std::process::id(), name));
+    let _ = std::fs::remove_dir_all(&cwd_dir);
+    let tab_cwd = cwd_dir.join("a\tb");
+    std::fs::create_dir_all(&tab_cwd).unwrap();
+    let cwd = tab_cwd.to_str().unwrap();
+
+    bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["record", "--cwd", cwd, "--session", "s1", "--", "echo hi"])
+        .status()
+        .unwrap();
+
+    let out = bin()
+        .env("SEASALT_DATA_DIR", &dir)
+        .args(["search", "--all", "--tsv", "echo hi"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let text = String::from_utf8(out.stdout).unwrap();
+    // The cwd stays on a single line: the embedded tab is escaped as a literal backslash-t
+    assert_eq!(text.lines().count(), 1, "got: {text}");
+    assert!(text.contains("a\\tb"), "cwd not escaped: {text}");
+
+    let _ = std::fs::remove_dir_all(&cwd_dir);
+}

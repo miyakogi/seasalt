@@ -719,3 +719,18 @@ fn delete_by_ids_over_sqlite_limit() {
         .unwrap();
     assert_eq!(count, 0);
 }
+
+#[test]
+fn default_db_path_treats_empty_env_as_unset() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let data_home = std::env::temp_dir().join(format!("seasalt-empty-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&data_home);
+    // Empty SEASALT_DATA_DIR must be ignored, falling back to XDG_DATA_HOME
+    std::env::set_var("SEASALT_DATA_DIR", "");
+    std::env::set_var("XDG_DATA_HOME", &data_home);
+    let path = db::default_db_path().unwrap();
+    assert_eq!(path, data_home.join("seasalt").join("history.sqlite3"));
+    std::env::remove_var("SEASALT_DATA_DIR");
+    std::env::remove_var("XDG_DATA_HOME");
+    let _ = std::fs::remove_dir_all(&data_home);
+}
