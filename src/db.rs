@@ -32,7 +32,17 @@ pub struct HistoryEntry {
 
 pub fn default_db_path() -> Result<PathBuf> {
     let base = if let Ok(dir) = std::env::var("SEASALT_DATA_DIR") {
-        PathBuf::from(dir)
+        // An empty value is treated as unset so a stray exported variable
+        // does not break every subcommand with a nonexistent base path.
+        if dir.is_empty() {
+            if let Some(data) = dirs::data_dir() {
+                data.join("seasalt")
+            } else {
+                anyhow::bail!("cannot determine data directory; set SEASALT_DATA_DIR");
+            }
+        } else {
+            PathBuf::from(dir)
+        }
     } else if let Some(data) = dirs::data_dir() {
         data.join("seasalt")
     } else {

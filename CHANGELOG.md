@@ -4,6 +4,7 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+- Treat an empty `SEASALT_DATA_DIR` as unset instead of failing on a nonexistent path
 - Harden `suggest` to stop scanning candidates once the 200ms budget has elapsed
 
 ## [0.2.2] - 2026-08-22
