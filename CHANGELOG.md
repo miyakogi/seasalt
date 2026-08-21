@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+- Harden `suggest` to stop scanning candidates once the 200ms budget has elapsed
+
 ## [0.2.2] - 2026-08-22
 
 - Improve suggestion responsiveness under DB contention by lowering `busy_timeout` to 150ms (inside the 200ms suggest budget)

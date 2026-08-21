@@ -77,7 +77,7 @@ fn search(
         }
     };
     // Scope 1: exact cwd match
-    match search_scope(conn, cwd_norm, line, Some(cwd_norm))? {
+    match search_scope(conn, cwd_norm, line, Some(cwd_norm), deadline)? {
         Outcome::Suggest(cmd) => return Ok(Some(cmd)),
         Outcome::Identical => return Ok(None),
         Outcome::NoMatch => {}
@@ -87,7 +87,7 @@ fn search(
         if expired(deadline) {
             return Ok(None);
         }
-        match search_scope(conn, cwd_norm, line, Some(&anc))? {
+        match search_scope(conn, cwd_norm, line, Some(&anc), deadline)? {
             Outcome::Suggest(cmd) => return Ok(Some(cmd)),
             Outcome::Identical => return Ok(None),
             Outcome::NoMatch => {}
@@ -97,7 +97,7 @@ fn search(
     if expired(deadline) {
         return Ok(None);
     }
-    match search_scope(conn, cwd_norm, line, None)? {
+    match search_scope(conn, cwd_norm, line, None, deadline)? {
         Outcome::Suggest(cmd) => Ok(Some(cmd)),
         Outcome::Identical | Outcome::NoMatch => Ok(None),
     }
@@ -126,6 +126,7 @@ pub fn ancestors(cwd: &str) -> Vec<String> {
 }
 
 /// Result of selecting among candidates
+#[derive(Debug, PartialEq)]
 enum Outcome {
     /// Command to suggest
     Suggest(String),
@@ -137,8 +138,18 @@ enum Outcome {
 
 /// Picks the first valid candidate. Candidates referencing deleted
 /// files are skipped; Identical is returned when one equals the line.
-fn pick(cwd: &str, line: &str, candidates: Vec<(String, String)>) -> Outcome {
+fn pick(
+    cwd: &str,
+    line: &str,
+    candidates: Vec<(String, String)>,
+    deadline: Option<Instant>,
+) -> Outcome {
     for (cmd, paths) in candidates {
+        // Stop scanning once the budget has elapsed: the filesystem checks
+        // below are not covered by the SQLite progress_handler.
+        if expired(deadline) {
+            return Outcome::NoMatch;
+        }
         if !paths::valid(cwd, &paths) {
             continue;
         }
@@ -153,12 +164,68 @@ fn pick(cwd: &str, line: &str, candidates: Vec<(String, String)>) -> Outcome {
 
 /// Searches one scope. Exact-case matches are preferred, falling back
 /// to the latest case-insensitive match (like fish).
-fn search_scope(conn: &Connection, cwd: &str, line: &str, dir: Option<&str>) -> Result<Outcome> {
+fn search_scope(
+    conn: &Connection,
+    cwd: &str,
+    line: &str,
+    dir: Option<&str>,
+    deadline: Option<Instant>,
+) -> Result<Outcome> {
     let candidates = db::suggest_prefix(conn, dir, line, CANDIDATE_LIMIT, true)?;
-    match pick(cwd, line, candidates) {
+    match pick(cwd, line, candidates, deadline) {
         Outcome::NoMatch => {}
         other => return Ok(other),
     }
     let candidates = db::suggest_prefix(conn, dir, line, CANDIDATE_LIMIT, false)?;
-    Ok(pick(cwd, line, candidates))
+    Ok(pick(cwd, line, candidates, deadline))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pick;
+    use super::Outcome;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn pick_returns_nomatch_when_deadline_expired() {
+        // Even a valid, matching candidate is not selected once the deadline
+        // has passed: pick must stop instead of scanning further candidates.
+        let expired = Some(Instant::now() - Duration::from_secs(1));
+        assert_eq!(
+            pick(
+                "/x",
+                "cargo",
+                vec![("cargo build".to_string(), String::new())],
+                expired,
+            ),
+            Outcome::NoMatch
+        );
+    }
+
+    #[test]
+    fn pick_selects_first_valid_candidate() {
+        // Regression guard: no deadline -> the first valid candidate wins.
+        assert_eq!(
+            pick(
+                "/x",
+                "cargo",
+                vec![("cargo build".to_string(), String::new())],
+                None,
+            ),
+            Outcome::Suggest("cargo build".to_string())
+        );
+    }
+
+    #[test]
+    fn pick_returns_identical_for_matching_line() {
+        assert_eq!(
+            pick(
+                "/x",
+                "cargo build",
+                vec![("cargo build".to_string(), String::new())],
+                None,
+            ),
+            Outcome::Identical
+        );
+    }
 }
